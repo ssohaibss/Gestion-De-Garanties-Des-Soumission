@@ -3,8 +3,7 @@ $host = 'localhost';
 $port = 3306;
 $dbname = 'garantie_de_soumission';
 $user = 'root';
-$pass = 'root';
-$port = 8889;
+$pass = '';
 $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
 
 $options = [
