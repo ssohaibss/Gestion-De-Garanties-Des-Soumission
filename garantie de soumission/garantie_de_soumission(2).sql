@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : dim. 14 déc. 2025 à 13:29
+-- Généré le : sam. 20 déc. 2025 à 14:51
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.18
 
@@ -37,7 +37,16 @@ CREATE TABLE IF NOT EXISTS `agence` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   KEY `fk_banque_agence` (`banqueID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `agence`
+--
+
+INSERT INTO `agence` (`id`, `nom`, `code`, `adresse`, `banqueID`) VALUES
+(1, 'cheraga', 'A12', 'cheraga', 18),
+(2, 'xlcdc', 'yy', 'ccc', 18),
+(9, 'cheraga', 'A13', 'cheraga', 18);
 
 -- --------------------------------------------------------
 
@@ -74,7 +83,15 @@ CREATE TABLE IF NOT EXISTS `appel_offre` (
   `num_app_offre` varchar(50) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `num_app_offre` (`num_app_offre`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `appel_offre`
+--
+
+INSERT INTO `appel_offre` (`id`, `num_app_offre`) VALUES
+(1, '3999'),
+(2, '6666');
 
 -- --------------------------------------------------------
 
@@ -101,11 +118,19 @@ CREATE TABLE IF NOT EXISTS `authentification` (
 DROP TABLE IF EXISTS `banque`;
 CREATE TABLE IF NOT EXISTS `banque` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(11) NOT NULL,
+  `code` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `nom_banque` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `banque`
+--
+
+INSERT INTO `banque` (`id`, `code`, `nom_banque`) VALUES
+(18, 'B12', 'Crédit Populaire d\'Algérie'),
+(20, 'B11', 'Crédit');
 
 -- --------------------------------------------------------
 
@@ -119,8 +144,19 @@ CREATE TABLE IF NOT EXISTS `devise` (
   `code` varchar(11) NOT NULL,
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `code` (`code`),
+  UNIQUE KEY `libelle` (`libelle`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `devise`
+--
+
+INSERT INTO `devise` (`id`, `code`, `libelle`) VALUES
+(1, 'EUR', 'Euro'),
+(2, 'USD', 'Dollar Américain'),
+(3, 'DZD', 'Dinar Algérien'),
+(9, 'S', 'ss');
 
 -- --------------------------------------------------------
 
@@ -169,7 +205,15 @@ CREATE TABLE IF NOT EXISTS `garantie_soumission` (
   KEY `fk_appel_garantie` (`appel_offreID`),
   KEY `fk_statut_garantie` (`statutID`),
   KEY `fk_utilisateur_garantie` (`utilisateurID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `garantie_soumission`
+--
+
+INSERT INTO `garantie_soumission` (`id`, `num_garantie`, `montant_garantie`, `date_emission`, `date_expiration`, `soumissionnaireID`, `agenceID`, `deviseID`, `structureID`, `appel_offreID`, `statutID`, `utilisateurID`) VALUES
+(13, 5757, 200000.00, '2025-12-14', '2026-12-14', 1, 1, 1, 1, 1, 1, 3),
+(16, 48859, 443330.00, '4444-04-12', '5555-03-31', 3, 1, 2, 1, 2, 1, 3);
 
 -- --------------------------------------------------------
 
@@ -205,8 +249,17 @@ CREATE TABLE IF NOT EXISTS `pays` (
   `Nom` varchar(255) NOT NULL,
   `code_pays` varchar(11) NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE KEY `code_pays` (`code_pays`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `code_pays` (`code_pays`),
+  UNIQUE KEY `Nom` (`Nom`)
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `pays`
+--
+
+INSERT INTO `pays` (`id`, `Nom`, `code_pays`) VALUES
+(1, 'algeria', 'DZ'),
+(2, 'france', 'FR');
 
 -- --------------------------------------------------------
 
@@ -221,7 +274,15 @@ CREATE TABLE IF NOT EXISTS `role` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `role`
+--
+
+INSERT INTO `role` (`id`, `code`, `libelle`) VALUES
+(1, 'ADMIN', 'Adminstrateur'),
+(2, 'USER', 'Utilisateur');
 
 -- --------------------------------------------------------
 
@@ -239,7 +300,20 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
   `paysID` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_pays_soumissionnaire` (`paysID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `soumissionnaire`
+--
+
+INSERT INTO `soumissionnaire` (`id`, `nom_entreprise`, `adresse`, `telephone`, `email`, `paysID`) VALUES
+(1, '7ds', 'sioddsoifdsio', '0507993831', '7ds@tristan.hell', 1),
+(2, 'lol', 'jjjjjjjjjjj', '0556783902', 'ahri@mid.ff', 1),
+(3, 'chazyl', 'sdsaklds', '0789912934', 'chznidsk@bourak.com', 1),
+(4, 'Sohaib2', 'sss', '+213 657576105', 'sohaib@gmail.com', 1),
+(5, 'Sohaib2', '123', '+213 657576105', 'sohaib@gmail.com', 1),
+(6, '12345668899', '12', '+213 657576105', 'sohaib@gmail.com', 1),
+(7, 'xdxd', 'xd', '+213 657576105', 'bchazyl@gmail.com', 1);
 
 -- --------------------------------------------------------
 
@@ -254,7 +328,16 @@ CREATE TABLE IF NOT EXISTS `statut` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `statut`
+--
+
+INSERT INTO `statut` (`id`, `code`, `libelle`) VALUES
+(1, 'ACTIF', 'Active'),
+(2, 'EXPIRE', 'Expirée'),
+(3, 'LIBERE', 'Libérée');
 
 -- --------------------------------------------------------
 
@@ -265,11 +348,21 @@ CREATE TABLE IF NOT EXISTS `statut` (
 DROP TABLE IF EXISTS `structure`;
 CREATE TABLE IF NOT EXISTS `structure` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(11) NOT NULL,
+  `code` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `structure`
+--
+
+INSERT INTO `structure` (`id`, `code`, `libelle`) VALUES
+(1, 'IT', 'Informatique'),
+(2, 'tt', 'tttt'),
+(4, 'zzdad', 'ss'),
+(5, 'ASASA', 'sssssss');
 
 -- --------------------------------------------------------
 
@@ -284,7 +377,16 @@ CREATE TABLE IF NOT EXISTS `type_amendement` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `type_amendement`
+--
+
+INSERT INTO `type_amendement` (`id`, `code`, `libelle`) VALUES
+(1, 'MONTANT', 'Modification du montant'),
+(2, 'DATE', 'Prolongation de date'),
+(3, 'MIXTE', 'Modification montant et date');
 
 -- --------------------------------------------------------
 
@@ -299,7 +401,17 @@ CREATE TABLE IF NOT EXISTS `type_document` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `type_document`
+--
+
+INSERT INTO `type_document` (`id`, `code`, `libelle`) VALUES
+(1, 'GARANTIE', 'Document de garantie'),
+(2, 'AMENDEMENT', 'Document d\'amendement'),
+(3, 'LIBERATION', 'Document de libération'),
+(4, 'AUTHENTIF', 'Document d\'authentification');
 
 -- --------------------------------------------------------
 
@@ -314,7 +426,15 @@ CREATE TABLE IF NOT EXISTS `type_liberation` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `type_liberation`
+--
+
+INSERT INTO `type_liberation` (`id`, `code`, `libelle`) VALUES
+(1, 'TOTALE', 'Libération totale'),
+(2, 'PARTIELLE', 'Libération partielle');
 
 -- --------------------------------------------------------
 
@@ -327,12 +447,23 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,
   `nom` varchar(50) NOT NULL,
-  `mot_de_pass` varchar(255) NOT NULL,
+  `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `roleID` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `nom` (`nom`),
   KEY `fk_role_utilisateur` (`roleID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Déchargement des données de la table `utilisateur`
+--
+
+INSERT INTO `utilisateur` (`id`, `email`, `nom`, `mot_de_passe`, `roleID`) VALUES
+(3, 'admin@gmail.com', 'admin', '$2y$10$BYsSkm1h8Txeg8QWV0ZgwuB1VOwOGWpKS9V387691u3Ch.MyOnyGi', 1),
+(4, 'sohaibtata13@gmail.com', 'sohaib', '$2y$10$NoM6J0T6rIFlwN1C4swemu/QCIm0.SDg1hQb76G5.RFwoEcH2rwhW', 1),
+(5, 'bchazyl@gmail.com', 'belabed', '$2y$10$ojI67TuBzmdbptK8KUyqFOV/owqZqh.5noI8z3XoNMn6.UhzTYalO', 2),
+(12, 'admin1@gmail.com', 't', '$2y$10$iMyMqm3Rpv0T29Asvledm.x6t2YfovFjZhgp5VhCkKVEPL9iwDKc2', 1);
 
 --
 -- Contraintes pour les tables déchargées

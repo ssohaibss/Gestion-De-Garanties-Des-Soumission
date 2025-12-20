@@ -1,12 +1,10 @@
 <?php
-
 require_once dirname(__DIR__) . '/database.php';
 
 // Fetch existing countries for display
-$stmt = $pdo->prepare("SELECT * FROM pays ORDER BY nom ASC");
+$stmt = $pdo->prepare("SELECT Nom, code_pays FROM pays ORDER BY Nom ASC");
 $stmt->execute();
 $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 ?>
 
 <div class="content-header">
@@ -32,17 +30,19 @@ $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         <?php endif; ?>
         
-        <form action="process.php" method="POST">
+        <form id="paysForm" action="process.php" method="POST" novalidate>
             <input type="hidden" name="form_type" value="pays">
             
             <div class="mb-3">
                 <label for="nom" class="form-label">Nom du Pays <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="nom" name="nom" required>
+                <input type="text" class="form-control" id="nom" name="nom">
+                <div class="invalid-feedback">Le nom du pays est obligatoire.</div>
             </div>
             
             <div class="mb-3">
                 <label for="code_pays" class="form-label">Code Pays (ISO) <span class="text-danger">*</span></label>
-                <input type="text" class="form-control" id="code_pays" name="code_pays" maxlength="3" required>
+                <input type="text" class="form-control" id="code_pays" name="code_pays" maxlength="3">
+                <div class="invalid-feedback">Le code pays est obligatoire.</div>
                 <small class="form-text text-muted">Ex: DZ pour Algérie, US pour État-Unis</small>
             </div>
             
@@ -72,12 +72,16 @@ $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($countries as $country): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($country['Nom']); ?></td>
-                            <td><?php echo htmlspecialchars($country['code_pays']); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
+                    <?php if (empty($countries)): ?>
+                        <tr><td colspan="2" class="text-center">Aucun pays trouvé</td></tr>
+                    <?php else: ?>
+                        <?php foreach ($countries as $country): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($country['Nom']); ?></td>
+                                <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($country['code_pays']); ?></span></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -85,49 +89,38 @@ $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <script>
-
-
-// form restriction 
-const inputs = document.querySelectorAll('#nom, #code_pays')
-inputs.forEach(input => {
-    input.addEventListener('input', function (e) {
-        this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
-    });
-});
-
-//unique check
 document.addEventListener('DOMContentLoaded', function() {
-    const fields = ['nom', 'code_pays'];
-    const submitBtn = document.querySelector('button[type="submit"]');
+    const form = document.getElementById('paysForm');
+    const nomInput = document.getElementById('nom');
+    const codeInput = document.getElementById('code_pays');
 
-    fields.forEach(fieldId => {
-        const input = document.getElementById(fieldId);
-        
-        input.addEventListener('blur', function() { // Fires when user clicks away
-            const value = this.value;
-            if (value.length < 2) return;
-
-            fetch('unique_check.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `field=${fieldId}&value=${encodeURIComponent(value)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    alert(`Ce ${fieldId === 'nom' ? 'nom' : 'code'} existe déjà !`);
-                    submitBtn.disabled = true;
-                } else {
-                    this.classList.remove('is-invalid');
-                    submitBtn.disabled = false;
-                }
-            });
+    // 1. Restriction: Allow only letters, spaces, and hyphens
+    [nomInput, codeInput].forEach(input => {
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
+            this.classList.remove('is-invalid');
         });
     });
+
+    // 2. Modern Form Submission Check
+    form.addEventListener('submit', function(e) {
+        let isValid = true;
+
+        [nomInput, codeInput].forEach(input => input.classList.remove('is-invalid'));
+
+        if (nomInput.value.trim() === "") {
+            nomInput.classList.add('is-invalid');
+            isValid = false;
+        }
+
+        if (codeInput.value.trim() === "") {
+            codeInput.classList.add('is-invalid');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            e.preventDefault();
+        }
+    });
 });
-
-
 </script>
-
-
