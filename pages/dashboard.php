@@ -202,6 +202,23 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <td><?php echo htmlspecialchars($row['statut'] ?? 'N/A'); ?></td>
                 <td>
                     <!-- Actions buttons go here -->
+                     <div class="btn-group btn-group-sm" role="group">
+                                <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" 
+                                   class="btn eye" title="Détails">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="index.php?page=modifier-garantie&id=<?php echo $row['id']; ?>" 
+                                   class="btn edit" title="Modifier">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </a>
+                                <a href="pages/delete-garantie.php?id=<?php echo $row['id']; ?>" 
+                                   class="btn btn-danger" 
+                                   onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette garantie ?');"
+                                   title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -225,7 +242,7 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="index.php?page=appelle-offre" class="btn ajouter text-white">
+                    <a href="index.php?page=appel-offre" class="btn ajouter text-white">
                         <i class="bi bi-file-text me-2"></i>Ajouter Appel d'Offre
                     </a>
                     <a href="index.php?page=garantie" class="btn ajouter text-white">

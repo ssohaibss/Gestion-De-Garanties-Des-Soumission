@@ -66,4 +66,17 @@ function getDaysRemainingBadge($days) {
 
 ?>
 
+ <script>
 
+    /*                  
+                                            not needed (bad for banque form)
+
+
+
+// numbers restriction 
+document.getElementById('nom').addEventListener('input', function (e) {
+    // Replaces any character that is NOT a letter, space, or hyphen with an empty string
+    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');});
+
+    */
+</script>

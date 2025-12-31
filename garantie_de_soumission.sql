@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : sam. 20 déc. 2025 à 14:51
+-- Généré le : mar. 30 déc. 2025 à 12:22
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.18
 
@@ -31,22 +31,26 @@ DROP TABLE IF EXISTS `agence`;
 CREATE TABLE IF NOT EXISTS `agence` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nom` varchar(50) NOT NULL,
-  `code` varchar(11) NOT NULL,
+  `code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `adresse` varchar(255) NOT NULL,
   `banqueID` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
+  UNIQUE KEY `uniq_agence` (`nom`,`adresse`,`banqueID`),
   KEY `fk_banque_agence` (`banqueID`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `agence`
 --
 
 INSERT INTO `agence` (`id`, `nom`, `code`, `adresse`, `banqueID`) VALUES
-(1, 'cheraga', 'A12', 'cheraga', 18),
-(2, 'xlcdc', 'yy', 'ccc', 18),
-(9, 'cheraga', 'A13', 'cheraga', 18);
+(15, 'Banque Extérieure d\'Algérie', 'BEA-ALG03', '11 Lot. Ben Haddadi Said, Chéraga', 39),
+(16, 'BEA Constantine Gare', 'BEA-CON04', '8 Rue Ibn Khaldoun, Constantine', 39),
+(17, 'Agence Les Vergers', 'CPA-ALG05', 'P3F6+859, St Charles, Kouba', 40),
+(18, 'Banque CPA', 'CPA-ORAN06', 'P923+W8Q, Rue Med Khemisti, Oran', 40),
+(19, 'BNA Agence Val d\'Hydra', 'BNA-ALG01', 'BLIA Office, Hydra', 38),
+(20, 'BNA Agence Soumam', 'BNA-ORAN02', '04 Bd de la Soummam, Oran', 38);
 
 -- --------------------------------------------------------
 
@@ -81,17 +85,22 @@ DROP TABLE IF EXISTS `appel_offre`;
 CREATE TABLE IF NOT EXISTS `appel_offre` (
   `id` int NOT NULL AUTO_INCREMENT,
   `num_app_offre` varchar(50) NOT NULL,
+  `date_emission` date NOT NULL,
+  `montant` decimal(15,2) NOT NULL,
+  `deviseID` int NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `num_app_offre` (`num_app_offre`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `num_app_offre` (`num_app_offre`),
+  KEY `fk_devise_appelOffre` (`deviseID`)
+) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `appel_offre`
 --
 
-INSERT INTO `appel_offre` (`id`, `num_app_offre`) VALUES
-(1, '3999'),
-(2, '6666');
+INSERT INTO `appel_offre` (`id`, `num_app_offre`, `date_emission`, `montant`, `deviseID`) VALUES
+(18, 'AO N 12/2024/EP/LOG', '2024-03-15', 85000000.00, 16),
+(19, 'AO N 07/2023/RA/TRX', '2024-06-10', 150000000.00, 16),
+(21, 'AO N 22/2024/EP/DRL', '2024-10-18', 1350000.00, 17);
 
 -- --------------------------------------------------------
 
@@ -118,19 +127,21 @@ CREATE TABLE IF NOT EXISTS `authentification` (
 DROP TABLE IF EXISTS `banque`;
 CREATE TABLE IF NOT EXISTS `banque` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `code` varchar(34) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `nom_banque` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `code` (`code`),
+  UNIQUE KEY `nom_banque` (`nom_banque`)
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `banque`
 --
 
 INSERT INTO `banque` (`id`, `code`, `nom_banque`) VALUES
-(18, 'B12', 'Crédit Populaire d\'Algérie'),
-(20, 'B11', 'Crédit');
+(38, 'BNA', 'Banque Nationale d\'Algérie'),
+(39, 'BEA', 'Banque Extérieure d\'Algérie'),
+(40, 'CPA', 'Crédit Populaire d\'Algérie');
 
 -- --------------------------------------------------------
 
@@ -146,17 +157,16 @@ CREATE TABLE IF NOT EXISTS `devise` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `libelle` (`libelle`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `devise`
 --
 
 INSERT INTO `devise` (`id`, `code`, `libelle`) VALUES
-(1, 'EUR', 'Euro'),
-(2, 'USD', 'Dollar Américain'),
-(3, 'DZD', 'Dinar Algérien'),
-(9, 'S', 'ss');
+(16, 'DZD', 'Dinar Algérien'),
+(17, 'USD', 'Dollar American'),
+(18, 'EUR', 'Euro');
 
 -- --------------------------------------------------------
 
@@ -205,15 +215,14 @@ CREATE TABLE IF NOT EXISTS `garantie_soumission` (
   KEY `fk_appel_garantie` (`appel_offreID`),
   KEY `fk_statut_garantie` (`statutID`),
   KEY `fk_utilisateur_garantie` (`utilisateurID`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `garantie_soumission`
 --
 
 INSERT INTO `garantie_soumission` (`id`, `num_garantie`, `montant_garantie`, `date_emission`, `date_expiration`, `soumissionnaireID`, `agenceID`, `deviseID`, `structureID`, `appel_offreID`, `statutID`, `utilisateurID`) VALUES
-(13, 5757, 200000.00, '2025-12-14', '2026-12-14', 1, 1, 1, 1, 1, 1, 3),
-(16, 48859, 443330.00, '4444-04-12', '5555-03-31', 3, 1, 2, 1, 2, 1, 3);
+(18, 2, 1.00, '2025-02-14', '2026-02-10', 12, 17, 16, 11, 21, 1, 19);
 
 -- --------------------------------------------------------
 
@@ -246,20 +255,22 @@ CREATE TABLE IF NOT EXISTS `liberation` (
 DROP TABLE IF EXISTS `pays`;
 CREATE TABLE IF NOT EXISTS `pays` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `Nom` varchar(255) NOT NULL,
+  `nom` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `code_pays` varchar(11) NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `code_pays` (`code_pays`),
-  UNIQUE KEY `Nom` (`Nom`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `Nom` (`nom`)
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `pays`
 --
 
-INSERT INTO `pays` (`id`, `Nom`, `code_pays`) VALUES
-(1, 'algeria', 'DZ'),
-(2, 'france', 'FR');
+INSERT INTO `pays` (`id`, `nom`, `code_pays`) VALUES
+(1, 'Algérie', 'DZ'),
+(2, 'France', 'FRA'),
+(49, 'Chine', 'CN'),
+(51, 'État-Unis', 'USA');
 
 -- --------------------------------------------------------
 
@@ -295,25 +306,23 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nom_entreprise` varchar(255) NOT NULL,
   `adresse` varchar(255) NOT NULL,
-  `telephone` varchar(255) NOT NULL,
+  `telephone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `email` varchar(255) NOT NULL,
   `paysID` int NOT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`),
+  UNIQUE KEY `nom_entreprise` (`nom_entreprise`),
+  UNIQUE KEY `telephone` (`telephone`),
   KEY `fk_pays_soumissionnaire` (`paysID`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `soumissionnaire`
 --
 
 INSERT INTO `soumissionnaire` (`id`, `nom_entreprise`, `adresse`, `telephone`, `email`, `paysID`) VALUES
-(1, '7ds', 'sioddsoifdsio', '0507993831', '7ds@tristan.hell', 1),
-(2, 'lol', 'jjjjjjjjjjj', '0556783902', 'ahri@mid.ff', 1),
-(3, 'chazyl', 'sdsaklds', '0789912934', 'chznidsk@bourak.com', 1),
-(4, 'Sohaib2', 'sss', '+213 657576105', 'sohaib@gmail.com', 1),
-(5, 'Sohaib2', '123', '+213 657576105', 'sohaib@gmail.com', 1),
-(6, '12345668899', '12', '+213 657576105', 'sohaib@gmail.com', 1),
-(7, 'xdxd', 'xd', '+213 657576105', 'bchazyl@gmail.com', 1);
+(12, 'ETB TCE', 'Boumerdas', '+213657576105', 'salim@gmail.com', 1),
+(14, 'ETB TCE 1', 'Boumerdas', '+213657576106', 'salim@gmail.co', 1);
 
 -- --------------------------------------------------------
 
@@ -351,18 +360,18 @@ CREATE TABLE IF NOT EXISTS `structure` (
   `code` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  UNIQUE KEY `code` (`code`),
+  UNIQUE KEY `libelle` (`libelle`)
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `structure`
 --
 
 INSERT INTO `structure` (`id`, `code`, `libelle`) VALUES
-(1, 'IT', 'Informatique'),
-(2, 'tt', 'tttt'),
-(4, 'zzdad', 'ss'),
-(5, 'ASASA', 'sssssss');
+(1, 'IT', 'Technologies de l’Information'),
+(11, 'ADP', 'Administration du Personnel'),
+(12, 'DRH', 'Direction Ressources Humaines');
 
 -- --------------------------------------------------------
 
@@ -446,24 +455,25 @@ DROP TABLE IF EXISTS `utilisateur`;
 CREATE TABLE IF NOT EXISTS `utilisateur` (
   `id` int NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,
+  `username` varchar(50) NOT NULL,
   `nom` varchar(50) NOT NULL,
-  `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `prenom` varchar(50) NOT NULL,
+  `mot_de_pass` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `roleID` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
-  UNIQUE KEY `nom` (`nom`),
+  UNIQUE KEY `username` (`username`),
   KEY `fk_role_utilisateur` (`roleID`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `utilisateur`
 --
 
-INSERT INTO `utilisateur` (`id`, `email`, `nom`, `mot_de_passe`, `roleID`) VALUES
-(3, 'admin@gmail.com', 'admin', '$2y$10$BYsSkm1h8Txeg8QWV0ZgwuB1VOwOGWpKS9V387691u3Ch.MyOnyGi', 1),
-(4, 'sohaibtata13@gmail.com', 'sohaib', '$2y$10$NoM6J0T6rIFlwN1C4swemu/QCIm0.SDg1hQb76G5.RFwoEcH2rwhW', 1),
-(5, 'bchazyl@gmail.com', 'belabed', '$2y$10$ojI67TuBzmdbptK8KUyqFOV/owqZqh.5noI8z3XoNMn6.UhzTYalO', 2),
-(12, 'admin1@gmail.com', 't', '$2y$10$iMyMqm3Rpv0T29Asvledm.x6t2YfovFjZhgp5VhCkKVEPL9iwDKc2', 1);
+INSERT INTO `utilisateur` (`id`, `email`, `username`, `nom`, `prenom`, `mot_de_pass`, `roleID`) VALUES
+(13, 'admin@sonatrach.com', 'admin', 'admin', 'admin', '$2y$10$BYsSkm1h8Txeg8QWV0ZgwuB1VOwOGWpKS9V387691u3Ch.MyOnyGi', 1),
+(18, 'KSC@sonatrach.com', 'kasdarli', 'Kasdarli', 'Sidahmed Cherif', '$2y$10$/davH.t/TkExllantTymCuWVdLYEc7wah9CxTKBq3v7H4V2Xgehgq', 2),
+(19, 'admin1@sonatrach.com', 'admin1', 'admin', 'admin', '$2y$10$Pji6WE.qnseTQjTCvgWik.nOTxv3lJ2TM/HCVJLtdgJ96iaBW8Fpu', 1);
 
 --
 -- Contraintes pour les tables déchargées
@@ -482,6 +492,12 @@ ALTER TABLE `amendement`
   ADD CONSTRAINT `fk_garantie_amendement` FOREIGN KEY (`garantie_soumissionID`) REFERENCES `garantie_soumission` (`id`),
   ADD CONSTRAINT `fk_TYPAm_amendement` FOREIGN KEY (`type_amendementID`) REFERENCES `type_amendement` (`id`),
   ADD CONSTRAINT `fk_utilisateur_amendement` FOREIGN KEY (`utilisateurID`) REFERENCES `utilisateur` (`id`);
+
+--
+-- Contraintes pour la table `appel_offre`
+--
+ALTER TABLE `appel_offre`
+  ADD CONSTRAINT `fk_devise_appelOffre` FOREIGN KEY (`deviseID`) REFERENCES `devise` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 --
 -- Contraintes pour la table `authentification`

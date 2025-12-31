@@ -204,5 +204,23 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(function(alert) {
+                    alert.style.transition = "opacity 0.6s ease";
+                    alert.style.opacity = "0";
+                    setTimeout(function() {
+                        alert.remove();
+                    }, 600);
+                });
+            }, 5000);
+        });
+    </script>
+    
+
+
 </body>
 </html>
