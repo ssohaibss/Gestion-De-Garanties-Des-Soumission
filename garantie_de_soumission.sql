@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : lun. 05 jan. 2026 à 22:27
+-- Généré le : mar. 20 jan. 2026 à 15:28
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.18
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `agence` (
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `uniq_agence` (`nom`,`adresse`,`banqueID`),
   KEY `fk_banque_agence` (`banqueID`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `agence`
@@ -50,7 +50,8 @@ INSERT INTO `agence` (`id`, `nom`, `code`, `adresse`, `banqueID`) VALUES
 (17, 'Agence Les Vergers', 'CPA-ALG05', 'P3F6+859, St Charles, Kouba', 40),
 (18, 'Banque CPA', 'CPA-ORAN06', 'P923+W8Q, Rue Med Khemisti, Oran', 40),
 (19, 'BNA Agence Val d\'Hydra', 'BNA-ALG01', 'BLIA Office, Hydra', 38),
-(20, 'BNA Agence Soumam', 'BNA-ORAN02', '04 Bd de la Soummam, Oran', 38);
+(20, 'BNA Agence Soumam', 'BNA-ORAN02', '04 Bd de la Soummam, Oran', 38),
+(21, 'Agence Les Verg', 'CPA-ALG', 'PF, St Charles, Kouba', 39);
 
 -- --------------------------------------------------------
 
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS `authentification` (
   `id` int NOT NULL AUTO_INCREMENT,
   `num_authentification` int NOT NULL,
   `date_authentification` date NOT NULL,
+  `date_saisie` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `garantie_soumissionID` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_garantie_authentification` (`garantie_soumissionID`)
@@ -132,7 +134,7 @@ CREATE TABLE IF NOT EXISTS `banque` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `nom_banque` (`nom_banque`)
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `banque`
@@ -141,7 +143,8 @@ CREATE TABLE IF NOT EXISTS `banque` (
 INSERT INTO `banque` (`id`, `code`, `nom_banque`) VALUES
 (38, 'BNA', 'Banque Nationale d\'Algérie'),
 (39, 'BEA', 'Banque Extérieure d\'Algérie'),
-(40, 'CPA', 'Crédit Populaire d\'Algérie');
+(40, 'CPA', 'Crédit Populaire d\'Algérie'),
+(46, 'A BN', 'test');
 
 -- --------------------------------------------------------
 
@@ -191,6 +194,62 @@ CREATE TABLE IF NOT EXISTS `document` (
 -- --------------------------------------------------------
 
 --
+-- Structure de la table `document_amendement`
+--
+
+DROP TABLE IF EXISTS `document_amendement`;
+CREATE TABLE IF NOT EXISTS `document_amendement` (
+  `documentID` int NOT NULL,
+  `amendementID` int NOT NULL,
+  PRIMARY KEY (`documentID`,`amendementID`),
+  KEY `fk_amd_docs` (`amendementID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `document_authentification`
+--
+
+DROP TABLE IF EXISTS `document_authentification`;
+CREATE TABLE IF NOT EXISTS `document_authentification` (
+  `documentID` int NOT NULL,
+  `authentificationID` int NOT NULL,
+  PRIMARY KEY (`documentID`,`authentificationID`),
+  KEY `fk_ath_docs` (`authentificationID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `document_garantie_soumission`
+--
+
+DROP TABLE IF EXISTS `document_garantie_soumission`;
+CREATE TABLE IF NOT EXISTS `document_garantie_soumission` (
+  `documentID` int NOT NULL,
+  `garantie_soumissionID` int NOT NULL,
+  PRIMARY KEY (`documentID`,`garantie_soumissionID`),
+  KEY `fk_garantie_docs` (`garantie_soumissionID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `document_liberation`
+--
+
+DROP TABLE IF EXISTS `document_liberation`;
+CREATE TABLE IF NOT EXISTS `document_liberation` (
+  `documentID` int NOT NULL,
+  `liberationID` int NOT NULL,
+  PRIMARY KEY (`documentID`,`liberationID`),
+  KEY `fk_lib_docs` (`liberationID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Structure de la table `garantie_soumission`
 --
 
@@ -217,14 +276,14 @@ CREATE TABLE IF NOT EXISTS `garantie_soumission` (
   KEY `fk_appel_garantie` (`appel_offreID`),
   KEY `fk_statut_garantie` (`statutID`),
   KEY `fk_utilisateur_garantie` (`utilisateurID`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `garantie_soumission`
 --
 
 INSERT INTO `garantie_soumission` (`id`, `num_garantie`, `montant_garantie`, `date_emission`, `date_expiration`, `soumissionnaireID`, `agenceID`, `deviseID`, `structureID`, `appel_offreID`, `statutID`, `utilisateurID`) VALUES
-(18, 2, 200000.00, '2025-02-14', '2026-02-10', 12, 17, 16, 11, 21, 1, 13);
+(18, 2, 200000.00, '2025-02-14', '2026-02-10', 12, 21, 16, 12, 21, 1, 13);
 
 -- --------------------------------------------------------
 
@@ -316,14 +375,15 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
   UNIQUE KEY `nom_entreprise` (`nom_entreprise`),
   UNIQUE KEY `telephone` (`telephone`),
   KEY `fk_pays_soumissionnaire` (`paysID`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `soumissionnaire`
 --
 
 INSERT INTO `soumissionnaire` (`id`, `nom_entreprise`, `adresse`, `telephone`, `email`, `paysID`) VALUES
-(12, 'ETB TCE', 'Boumerdas', '+213657576105', 'salim@sonatrach.com', 1);
+(12, 'ETB TCE', 'Boumerdas', '+213657576105', 'salim@gmail.com', 1),
+(15, 'ETDCCC', 'azeazrzarar', '+213657598653', 'chazyl@gmail.com', 1);
 
 -- --------------------------------------------------------
 
@@ -465,7 +525,7 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`),
   KEY `fk_role_utilisateur` (`roleID`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `utilisateur`
@@ -474,7 +534,8 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
 INSERT INTO `utilisateur` (`id`, `email`, `username`, `nom`, `prenom`, `mot_de_pass`, `roleID`) VALUES
 (13, 'admin@sonatrach.com', 'admin', 'admin', 'admin', '$2y$10$BYsSkm1h8Txeg8QWV0ZgwuB1VOwOGWpKS9V387691u3Ch.MyOnyGi', 1),
 (18, 'ksc@sonatrach.com', 'kasdarli', 'Kasdarli', 'Sidahmed Cherif', '$2y$10$iDtG6wFRrNP2dC3RIy73W.qAVBxwvjiHI9SMqo3XovrOJNM2EkBRa', 2),
-(19, 'admin1@sonatrach.com', 'admin1', 'admin', 'admin', '$2y$10$Pji6WE.qnseTQjTCvgWik.nOTxv3lJ2TM/HCVJLtdgJ96iaBW8Fpu', 1);
+(19, 'admin1@sonatrach.com', 'admin1', 'admin', 'admin', '$2y$10$Pji6WE.qnseTQjTCvgWik.nOTxv3lJ2TM/HCVJLtdgJ96iaBW8Fpu', 1),
+(21, 'admin2@sonatrach.com', 'admin2', 'admin', 'admin', '$2y$10$UI6J4egnVax9qYXYO5BCm.q3D2ttsbx6Y4hiMgEs8K1PIYROwMciO', 2);
 
 --
 -- Contraintes pour les tables déchargées
@@ -512,6 +573,34 @@ ALTER TABLE `authentification`
 ALTER TABLE `document`
   ADD CONSTRAINT `fk_garantie_document` FOREIGN KEY (`garantie_soumissionID`) REFERENCES `garantie_soumission` (`id`),
   ADD CONSTRAINT `fk_TYPDoc_document` FOREIGN KEY (`type_documentID`) REFERENCES `type_document` (`id`);
+
+--
+-- Contraintes pour la table `document_amendement`
+--
+ALTER TABLE `document_amendement`
+  ADD CONSTRAINT `fk_amd_docs` FOREIGN KEY (`amendementID`) REFERENCES `amendement` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_docs_amd` FOREIGN KEY (`documentID`) REFERENCES `document` (`id`) ON DELETE CASCADE;
+
+--
+-- Contraintes pour la table `document_authentification`
+--
+ALTER TABLE `document_authentification`
+  ADD CONSTRAINT `fk_ath_docs` FOREIGN KEY (`authentificationID`) REFERENCES `authentification` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_docs_ath` FOREIGN KEY (`documentID`) REFERENCES `document` (`id`) ON DELETE CASCADE;
+
+--
+-- Contraintes pour la table `document_garantie_soumission`
+--
+ALTER TABLE `document_garantie_soumission`
+  ADD CONSTRAINT `fk_docs_garantie` FOREIGN KEY (`documentID`) REFERENCES `document` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_garantie_docs` FOREIGN KEY (`garantie_soumissionID`) REFERENCES `garantie_soumission` (`id`) ON DELETE CASCADE;
+
+--
+-- Contraintes pour la table `document_liberation`
+--
+ALTER TABLE `document_liberation`
+  ADD CONSTRAINT `fk_docs_lib` FOREIGN KEY (`documentID`) REFERENCES `document` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_lib_docs` FOREIGN KEY (`liberationID`) REFERENCES `liberation` (`id`) ON DELETE CASCADE;
 
 --
 -- Contraintes pour la table `garantie_soumission`
