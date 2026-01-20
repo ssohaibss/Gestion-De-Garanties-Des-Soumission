@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 
-//  Récupération des devises
+// Récupération des devises
 $stmt = $pdo->query("SELECT * FROM devise ORDER BY libelle ASC");
 $currencies = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>

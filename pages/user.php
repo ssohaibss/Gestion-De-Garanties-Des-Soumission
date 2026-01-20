@@ -2,7 +2,6 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-
 // --- SÉCURITÉ : VÉRIFICATION DE L'EXISTENCE DU COMPTE ---
 // Si l'utilisateur a été supprimé par un autre admin, on le déconnecte immédiatement
 if (isset($_SESSION['user_id'])) {
@@ -80,14 +79,11 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Mot de passe <span id="passReq" class="text-danger">*</span></label>
                     <div class="input-group">
-                        <input type="password" class="form-control" name="password" id="passwordField" placeholder="Ex: Sntr@2025">
+                        <input type="password" class="form-control" name="password" id="passwordField" placeholder="Min. 8 car. (Maj, Min, Chiffre, Spécial), Ex: P@ssw0rd" >
                         <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                             <i class="fas fa-eye" id="eyeIcon"></i>
                         </button>
                         <div class="invalid-feedback"></div>
-                    </div>
-                    <small class="text-muted" id="passHelp">Min. 8 car. (Maj, Min, Chiffre, Spécial)</small>
-                </div>
             </div>
             
             <div class="d-flex gap-2">

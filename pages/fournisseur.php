@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 
-// 1.  Récupération des données
+// 1. Récupération des données
 $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll();
 
 $query = "SELECT s.*, p.nom as pays_nom 
@@ -56,12 +56,14 @@ $fournisseurs = $pdo->query($query)->fetchAll();
                             <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['nom']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="invalid-feedback"></div>
                 </div>
             </div>
             
             <div class="mb-3">
                 <label class="form-label">Adresse <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="adresse" name="adresse" rows="2" placeholder="Adresse complète" required></textarea>
+                <div class="invalid-feedback"></div>
             </div>
             
             <div class="d-flex gap-2">

@@ -34,7 +34,7 @@ function formatAmount($amount, $currency = 'DZD') {
 }
 
 /**
- * Calculate remaining days
+ * Calculate days remaining
  */
 function getDaysRemaining($expirationDate) {
     $now = new DateTime();

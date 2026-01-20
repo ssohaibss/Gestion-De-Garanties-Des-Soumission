@@ -5,7 +5,7 @@ require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
 
-// 1.  Récupération des données pour les selects
+//Récupération des données pour les selects
 
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code ASC")->fetchAll();
 
@@ -22,7 +22,7 @@ $agences = $pdo->query("SELECT Id, nom, banqueID FROM agence ORDER BY nom ASC")-
 $statuts = $pdo->query("SELECT Id, libelle FROM statut ORDER BY libelle ASC")->fetchAll();
 
 
-// 2. Logique AUTO-EDIT (Si on vient de la liste avec ?edit=ID)
+//Logique AUTO-EDIT (Si on vient de la liste avec ?edit=ID)
 
 $edit_data = null;
 
@@ -37,7 +37,7 @@ if (isset($_GET['edit'])) {
 }
 
 
-// 3. Liste des garanties pour le tableau
+//Liste des garanties pour le tableau
 
 $query = "SELECT g.*, s.nom_entreprise, d.code as devise_code, st.libelle as statut_nom
 
@@ -61,12 +61,6 @@ $recent_garanties = $pdo->query($query)->fetchAll();
     <div class="d-flex justify-content-between align-items-center">
 
         <h2><i class="fas fa-shield-alt me-2"></i>Gestion des Garanties</h2>
-
-        <button type="button" onclick="window.history.back();" class="btn btn-primary ajouter">
-
-            <i class="fas fa-arrow-left me-2"></i>Retourner à la page précédente
-
-        </button>
 
     </div>
 
@@ -387,7 +381,7 @@ const numInput = document.getElementById('numGarantieInput');
 const montantInput = document.getElementById('montantInput');
 
 
-// 1. Unicité AJAX en temps réel
+//Unicité AJAX en temps réel
 
 numInput.addEventListener('blur', async function() {
 
@@ -414,7 +408,7 @@ numInput.addEventListener('blur', async function() {
 });
 
 
-// 2. Mode Edition
+//Mode Edition
 
 function activateEditMode(g) {
 
@@ -460,7 +454,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// 3. Envoi AJAX avec gestion des erreurs par champ
+//Envoi AJAX avec gestion des erreurs par champ
 
 form.addEventListener('submit', async (e) => {
 
@@ -511,7 +505,7 @@ form.addEventListener('submit', async (e) => {
 });
 
 
-// 4. Actions tableau
+// Actions tableau
 
 document.querySelectorAll('.edit-btn').forEach(btn => {
 

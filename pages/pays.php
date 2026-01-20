@@ -6,7 +6,6 @@ $stmt = $pdo->query("SELECT * FROM pays ORDER BY nom ASC");
 $countries = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-
 <div class="content-header">
     <h2><i class="fas fa-globe"></i> Gestion des Pays</h2>
 </div>

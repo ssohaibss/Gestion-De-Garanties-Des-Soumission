@@ -2,13 +2,14 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-//  Requête
 $query = "SELECT 
     ao.id,
     ao.num_app_offre,
+    d.code as devise_code, -- On récupère le code (DZD, EUR, etc.)
     COUNT(g.id) as nb_garanties,
     SUM(g.montant_garantie) as montant_total
 FROM appel_offre ao
+LEFT JOIN devise d ON ao.deviseID = d.Id -- Jointure avec la table devise
 LEFT JOIN garantie_soumission g ON ao.id = g.appel_offreID
 GROUP BY ao.id
 ORDER BY ao.num_app_offre DESC";
@@ -50,8 +51,8 @@ $appels_offre = $result->fetchAll(PDO::FETCH_ASSOC);
                             <td><strong><?php echo htmlspecialchars($ao['num_app_offre']); ?></strong></td>
                             <td class="text-center"><?php echo $ao['nb_garanties']; ?> dossier(s)</td>
                             <td class="text-end fw-bold">
-                                <?php echo $ao['montant_total'] ? number_format($ao['montant_total'], 2, ',', ' ') . ' DZD' : '<span class="text-muted">0,00 DZD</span>'; ?>
-                            </td>
+    <?php echo $ao['montant_total'] ? number_format($ao['montant_total'], 2, ',', ' ') . ' ' . $ao['devise_code'] : '<span class="text-muted">0,00</span>'; ?>
+</td>
                             <td class="text-center">
                                 <div class="btn-group">
                                     <a href="index.php?page=details-appel-offre&id=<?php echo $ao['id']; ?>" class="btn btn-sm eye text-white" title="Voir les détails"><i class="fas fa-eye"></i></a>

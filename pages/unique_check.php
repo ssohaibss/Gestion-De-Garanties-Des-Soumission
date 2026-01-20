@@ -3,7 +3,6 @@ require_once dirname(__DIR__) . '/database.php';
 // Note: Utilise ta méthode habituelle pour récupérer $pdo (ex: $pdo = getDBConnection(); ou juste require)
 if(!isset($pdo)) { $pdo = getDBConnection(); } 
 
-
 header('Content-Type: application/json');
 
 $config = [

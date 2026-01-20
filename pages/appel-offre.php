@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// 1.  Récupération des devises pour le select
+// 1. Récupération des devises pour le select
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
 
 // 2. Logique AUTO-EDIT : Si l'ID est présent dans l'URL, on récupère les infos
@@ -24,10 +24,6 @@ $appels_offre = $pdo->query($query)->fetchAll();
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
         <h2><i class="fas fa-file-invoice me-2"></i>Gestion des Appels d'Offres</h2>
-        
-        <button type="button" onclick="window.history.back();" class="btn btn-primary ajouter">
-            <i class="fas fa-arrow-left me-2"></i>Retourner à la page précédente
-        </button>
     </div>
 </div>
 
@@ -36,7 +32,7 @@ $appels_offre = $pdo->query($query)->fetchAll();
         <i class="fas fa-user-edit me-2"></i><span id="cardHeaderTitle">Nouvel Appel d'Offre</span>
     </div>
     <div class="card-body">
-        <form id="appelOffreForm">
+        <form id="appelOffreForm" novalidate>
             <input type="hidden" name="id" id="aoId">
             <input type="hidden" name="form_type" id="formType" value="appel_offre">
 

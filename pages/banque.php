@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 
-//  Récupération des données avec sécurité pour les clés 'id' et 'code'
+// Récupération des données avec sécurité pour les clés 'id' et 'code'
 $banques_stmt = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC");
 $banques = $banques_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -87,7 +87,11 @@ $banques = $banques_stmt->fetchAll(PDO::FETCH_ASSOC);
 <script>
 const banqueForm = document.getElementById('banqueForm');
 document.getElementById('banqueNom').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
+    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-']/g, '');
+});
+const codeInput = document.getElementById('banqueCode');
+codeInput.addEventListener('input', function() {
+   this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
 });
 // --- AJOUT / MODIFICATION ---
 banqueForm.addEventListener('submit', async (e) => {

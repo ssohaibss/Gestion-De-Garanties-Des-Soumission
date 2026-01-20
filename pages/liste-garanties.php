@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-//  Requête optimisée avec toutes les jointures nécessaires
+// Requête optimisée avec toutes les jointures nécessaires
 $query = "SELECT 
     g.id,
     g.num_garantie,

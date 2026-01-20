@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// 1.  Récupération des agences avec jointure et gestion du code banque
+// 1. Récupération des agences avec jointure et gestion du code banque
 $query = "SELECT a.*, b.nom_banque, b.code as code_banque 
           FROM agence a 
           LEFT JOIN banque b ON a.banqueID = b.id OR a.banqueID = b.Id 
@@ -54,7 +54,7 @@ $banques = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll
                 </div>
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Adresse <span class="text-danger">*</span></label>
-                    <input type="text" name="adresse" class="form-control" placeholder="Adresse complète" required>
+                    <input type="text" name="adresse" id="adresseInput" class="form-control" placeholder="Adresse complète" required>
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
@@ -112,7 +112,11 @@ $banques = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll
 <script>
 const agenceForm = document.getElementById('agenceForm');
 document.getElementById('nomInput').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
+    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-']/g, '');
+});
+
+document.getElementById('adresseInput').addEventListener('input', function() {
+    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-',]/g, '');
 });
 // --- SOUMISSION ---
 agenceForm.addEventListener('submit', async (e) => {

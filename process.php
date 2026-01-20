@@ -12,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-
 $form_type = $_POST['form_type'] ?? '';
 
     
@@ -33,16 +32,19 @@ $form_type = $_POST['form_type'] ?? '';
 
     $errors = [];
 
-    // Validations
+    // Validations (need to get update to any domaine)
     if (strlen($nom) < 3) $errors['nom'] = "Le nom d'entreprise doit faire au moins 3 caractères.";
     
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = "Email invalide.";
-        } elseif (!str_ends_with(strtolower($email), '@sonatrach.com')) {
-            $errors['email'] = "L'email doit se terminer par @sonatrach.com";
+        } elseif (!str_ends_with(strtolower($email), 'gmail.com')) {
+            $errors['email'] = "L'email doit se terminer par @gmail.com";
         };
-    if (strlen($digits) < 9) $errors['telephone'] = "Numéro trop court (min. 12 chiffres).";
+    if (strlen($digits) < 9 ) $errors['telephone'] = "Numéro trop court (min. 12 chiffres).";
+    if (strlen($digits) >15 ) $errors['telephone'] = "Numéro trop long (max. 15 chiffres).";
     if (empty($adresse)) $errors['adresse'] = "L'adresse est requise.";
+    if (empty($paysID)) $errors['pays'] = "Le pays est requis.";
+    if (empty($email)) $errors['email'] = "L'email est requis.";
     if (!preg_match('/^[a-zA-Z\s]+$/', $nom)) $errors['nom'] = "Le nom ne doit contenir que des lettres et des espaces.";
 
     // Vérification Doublons (Email, Nom, Tel)
@@ -100,8 +102,10 @@ case 'pays':
     $errors = [];
 
     if (strlen($nom) < 2) $errors['nom'] = "Le nom est trop court.";
+    if (strlen($nom) > 15) $errors['nom'] = "Le nom est trop long (max. 15 caractères).";
     if (strlen($code) < 2) $errors['code_pays'] = "Le code ISO doit faire 2 ou 3 caractères.";
-    
+    if (empty($nom)) $errors['nom'] = "Le nom est requis.";
+    if (empty($code)) $errors['code_pays'] = "Le code pays est requis.";
 
     // Vérification Doublons (Utilisation de LOWER pour ignorer la casse en PHP)
     $sql_check = "SELECT nom, code_pays FROM pays WHERE (LOWER(nom) = LOWER(?) OR code_pays = ?)";
@@ -305,6 +309,7 @@ case 'structure':
         if (strlen($nom) < 3) $errors['nom'] = "Minimum 3 caractères.";
         if (strlen($prenom) < 3) $errors['prenom'] = "Minimum 3 caractères.";
         if (strlen($username) < 4) $errors['username'] = "Minimum 4 caractères.";
+        if (empty($role_id)) $errors['role'] = "Sélectionnez un rôle.";
         
         // Validation Email @sonatrach.com
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -419,10 +424,8 @@ case 'appel_offre':
         $annee_act = date('Y');
 
         // --- VALIDATIONS ---
-        if (empty($num_ao)) {
-            $errors['numero_ao'] = "Numéro obligatoire.";
-        }
-        
+        if (empty($num_ao)) {$errors['numero_ao'] = "Numéro obligatoire.";}
+        if (empty($montant)) {$errors['montant'] = "Montant obligatoire.";}
         if (empty($date_em)) {
             $errors['date_emission'] = "Date obligatoire.";
         } else {
@@ -499,7 +502,9 @@ case 'appel_offre':
     // Validation
     if ($code === '') $errors['code'] = 'Le code est obligatoire.';
     if ($nom === '') $errors['nom_banque'] = 'Le nom est obligatoire.';
-    if (strlen($code) > 3) $errors['code'] = "Le code banque ne dois avoir que 3 caractères.";
+    if (strlen($code) > 5) $errors['code'] = "Le code banque est trop long.";
+    if (strlen($code) < 3) $errors['code'] = "Le code banque est trop court.";
+    if (empty($code)) $errors['code'] = 'Le code est requis.';
 
     // Unicité
     $sql_check = "SELECT code, nom_banque FROM banque WHERE (code = ? OR nom_banque = ?)";
@@ -622,6 +627,7 @@ case 'update_garantie':
     $agenceID = $_POST['agenceID'] ?? '';
     $structureID = $_POST['structureID'] ?? '';
     $statutID = $_POST['statutID'] ?? '';
+    $banqueID = $_POST['banqueID'] ?? '';
     $aoID = !empty($_POST['appel_offreID']) ? $_POST['appel_offreID'] : null;
 
     $today = date('Y-m-d');
@@ -636,6 +642,10 @@ case 'update_garantie':
     if (empty($agenceID)) $errors['agenceID'] = "L'agence est obligatoire.";
     if (empty($structureID)) $errors['structureID'] = "La structure est obligatoire.";
     if (empty($statutID)) $errors['statutID'] = "Le statut est obligatoire.";
+    if (empty($banqueID)) $errors['banqueID'] = "La banque est obligatoire.";
+    if (empty($aoID)) $errors['appel_offreID'] = "L'appel d'offre est obligatoire.";
+    if (empty($montant) || $montant <= 0) $errors['montant_garantie'] = "Montant valide requis.";
+    
 
     // Dates
     if (empty($date_e)) $errors['date_emission'] = "Date d'émission requise.";

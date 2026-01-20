@@ -2,7 +2,7 @@
 require_once 'database.php';
 require_once 'includes/functions.php';
 
-// 1.  Define a single authoritative date
+// 1. Define a single authoritative date
 $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
 $todayStr   = $today->format('Y-m-d');
 $in30DaysStr = $today->modify('+30 days')->format('Y-m-d');
@@ -207,7 +207,7 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                    class="btn eye" title="Détails">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                <a href="index.php?page=modifier-garantie&id=<?php echo $row['id']; ?>" 
+                                <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" 
                                    class="btn edit" title="Modifier">
                                     <i class="fas fa-pencil-alt"></i>
                                 </a>

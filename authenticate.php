@@ -2,7 +2,6 @@
 session_start();
 require_once 'database.php';
 
-
 // Sécurité : on n'accepte que le POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: login.php');

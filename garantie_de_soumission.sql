@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : mar. 30 déc. 2025 à 12:22
+-- Généré le : lun. 05 jan. 2026 à 22:27
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.18
 
@@ -177,11 +177,13 @@ INSERT INTO `devise` (`id`, `code`, `libelle`) VALUES
 DROP TABLE IF EXISTS `document`;
 CREATE TABLE IF NOT EXISTS `document` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(11) NOT NULL,
   `nom_document` varchar(255) NOT NULL,
   `chemin_access` varchar(255) NOT NULL,
   `garantie_soumissionID` int NOT NULL,
   `type_documentID` int NOT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `code` (`code`),
   KEY `fk_garantie_document` (`garantie_soumissionID`),
   KEY `fk_TYPDoc_document` (`type_documentID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -222,7 +224,7 @@ CREATE TABLE IF NOT EXISTS `garantie_soumission` (
 --
 
 INSERT INTO `garantie_soumission` (`id`, `num_garantie`, `montant_garantie`, `date_emission`, `date_expiration`, `soumissionnaireID`, `agenceID`, `deviseID`, `structureID`, `appel_offreID`, `statutID`, `utilisateurID`) VALUES
-(18, 2, 1.00, '2025-02-14', '2026-02-10', 12, 17, 16, 11, 21, 1, 19);
+(18, 2, 200000.00, '2025-02-14', '2026-02-10', 12, 17, 16, 11, 21, 1, 13);
 
 -- --------------------------------------------------------
 
@@ -321,8 +323,7 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
 --
 
 INSERT INTO `soumissionnaire` (`id`, `nom_entreprise`, `adresse`, `telephone`, `email`, `paysID`) VALUES
-(12, 'ETB TCE', 'Boumerdas', '+213657576105', 'salim@gmail.com', 1),
-(14, 'ETB TCE 1', 'Boumerdas', '+213657576106', 'salim@gmail.co', 1);
+(12, 'ETB TCE', 'Boumerdas', '+213657576105', 'salim@sonatrach.com', 1);
 
 -- --------------------------------------------------------
 
@@ -464,7 +465,7 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`),
   KEY `fk_role_utilisateur` (`roleID`)
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `utilisateur`
@@ -472,7 +473,7 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
 
 INSERT INTO `utilisateur` (`id`, `email`, `username`, `nom`, `prenom`, `mot_de_pass`, `roleID`) VALUES
 (13, 'admin@sonatrach.com', 'admin', 'admin', 'admin', '$2y$10$BYsSkm1h8Txeg8QWV0ZgwuB1VOwOGWpKS9V387691u3Ch.MyOnyGi', 1),
-(18, 'KSC@sonatrach.com', 'kasdarli', 'Kasdarli', 'Sidahmed Cherif', '$2y$10$/davH.t/TkExllantTymCuWVdLYEc7wah9CxTKBq3v7H4V2Xgehgq', 2),
+(18, 'ksc@sonatrach.com', 'kasdarli', 'Kasdarli', 'Sidahmed Cherif', '$2y$10$iDtG6wFRrNP2dC3RIy73W.qAVBxwvjiHI9SMqo3XovrOJNM2EkBRa', 2),
 (19, 'admin1@sonatrach.com', 'admin1', 'admin', 'admin', '$2y$10$Pji6WE.qnseTQjTCvgWik.nOTxv3lJ2TM/HCVJLtdgJ96iaBW8Fpu', 1);
 
 --
