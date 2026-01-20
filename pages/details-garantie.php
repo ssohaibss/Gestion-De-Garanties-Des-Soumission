@@ -4,7 +4,7 @@ $pdo = getDBConnection();
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// Requête complète pour récupérer tous les détails liés
+//  Requête complète pour récupérer tous les détails liés
 $query = "SELECT 
     g.*,
     s.nom_entreprise,

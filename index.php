@@ -5,6 +5,7 @@ if (isset($_SESSION['user_id'])) {
     require_once 'database.php';
     $db = getDBConnection();
     
+    
     // Vérifier si l'utilisateur existe encore en base de données
     $stmt = $db->prepare("SELECT id FROM utilisateur WHERE id = ?");
     $stmt->execute([$_SESSION['user_id']]);

@@ -6,6 +6,7 @@ $stmt = $pdo->query("SELECT * FROM structure ORDER BY libelle ASC");
 $structures = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
+
 <div class="content-header">
     <h2><i class="fas fa-sitemap"></i> Gestion des Structures</h2>
 </div>

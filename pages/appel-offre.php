@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// 1. Récupération des devises pour le select
+// 1.  Récupération des devises pour le select
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
 
 // 2. Logique AUTO-EDIT : Si l'ID est présent dans l'URL, on récupère les infos

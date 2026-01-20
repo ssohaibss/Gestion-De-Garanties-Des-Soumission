@@ -10,3 +10,4 @@ $_SESSION['logout_success'] = 'Vous avez été déconnecté avec succès.';
 header('Location: ../login.php');
 exit();
 ?>
+

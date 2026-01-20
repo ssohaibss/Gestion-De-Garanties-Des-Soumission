@@ -2,6 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
+
 // --- SÉCURITÉ : VÉRIFICATION DE L'EXISTENCE DU COMPTE ---
 // Si l'utilisateur a été supprimé par un autre admin, on le déconnecte immédiatement
 if (isset($_SESSION['user_id'])) {

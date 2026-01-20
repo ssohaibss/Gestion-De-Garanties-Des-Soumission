@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 
-// 1. Récupération des données
+// 1.  Récupération des données
 $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll();
 
 $query = "SELECT s.*, p.nom as pays_nom 

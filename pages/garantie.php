@@ -5,7 +5,7 @@ require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
 
-// 1. Récupération des données pour les selects
+// 1.  Récupération des données pour les selects
 
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code ASC")->fetchAll();
 

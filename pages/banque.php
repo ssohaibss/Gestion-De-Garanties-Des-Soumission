@@ -1,7 +1,7 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 
-// Récupération des données avec sécurité pour les clés 'id' et 'code'
+//  Récupération des données avec sécurité pour les clés 'id' et 'code'
 $banques_stmt = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC");
 $banques = $banques_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>

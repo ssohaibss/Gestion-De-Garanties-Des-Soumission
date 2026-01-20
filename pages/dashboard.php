@@ -2,7 +2,7 @@
 require_once 'database.php';
 require_once 'includes/functions.php';
 
-// 1. Define a single authoritative date
+// 1.  Define a single authoritative date
 $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
 $todayStr   = $today->format('Y-m-d');
 $in30DaysStr = $today->modify('+30 days')->format('Y-m-d');

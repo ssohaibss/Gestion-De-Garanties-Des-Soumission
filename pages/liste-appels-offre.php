@@ -2,6 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
+//  Requête
 $query = "SELECT 
     ao.id,
     ao.num_app_offre,

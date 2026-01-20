@@ -4,7 +4,7 @@ $pdo = getDBConnection();
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// Récupération des détails avec jointure pour la devise
+//  Récupération des détails avec jointure pour la devise
 $query = "SELECT ao.*, d.code as devise_code 
           FROM appel_offre ao 
           LEFT JOIN devise d ON ao.deviseID = d.Id 

@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// 1. Récupération des agences avec jointure et gestion du code banque
+// 1.  Récupération des agences avec jointure et gestion du code banque
 $query = "SELECT a.*, b.nom_banque, b.code as code_banque 
           FROM agence a 
           LEFT JOIN banque b ON a.banqueID = b.id OR a.banqueID = b.Id 
