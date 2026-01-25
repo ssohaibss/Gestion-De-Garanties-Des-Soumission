@@ -29,7 +29,7 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
-        <h2><i class="fas fa-shield-alt me-2"></i>Liste des Garanties</h2>
+        <h1 class="page-title"><i class="fas fa-shield-alt me-2"></i>Liste des Garanties</h1>
         <a href="index.php?page=garantie" class="btn ajouter">
             <i class="fas fa-plus me-2"></i>Ajouter une Garantie
         </a>

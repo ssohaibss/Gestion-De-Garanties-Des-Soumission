@@ -27,10 +27,10 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 
 $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
 
-// Logique pour le menu déroulant actif
-$adminPages = ['fournisseur', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence'];
-$currentPage = $_GET['page'] ?? 'dashboard';
-$isAdminMenuOpen = in_array($currentPage, $adminPages);
+        // Logique pour le menu déroulant actif
+        $adminPages = ['fournisseur', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence', 'liste-fournisseur', 'liste-pays', 'liste-devise', 'liste-structure', 'liste-user', 'liste-appels-offre', 'liste-banque', 'liste-agence'];
+        $currentPage = $_GET['page'] ?? 'dashboard';
+        $isAdminMenuOpen = in_array($currentPage, $adminPages);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -126,6 +126,22 @@ $isAdminMenuOpen = in_array($currentPage, $adminPages);
             color: #fff;
         }
 
+        .dropdown-item.active {
+            background: linear-gradient(135deg, #e8772b 0%, #57606f 100%) !important;
+            color: #fff !important;
+        }
+
+        /* Page Title Styling */
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2f4858;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 3px solid #e8772b;
+            display: inline-block;
+        }
+
         /* MAIN CONTENT */
         #content { padding: 2rem; min-height: 100vh; }
         .content-header {
@@ -171,20 +187,20 @@ $isAdminMenuOpen = in_array($currentPage, $adminPages);
                         </a>
                         <div class="collapse <?php echo $isAdminMenuOpen ? 'show' : ''; ?>" id="adminSubmenu">
                             <ul class="list-unstyled">
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'fournisseur') ? 'active' : ''; ?>" href="index.php?page=fournisseur">Fournisseur</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'pays') ? 'active' : ''; ?>" href="index.php?page=pays">Pays</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'devise') ? 'active' : ''; ?>" href="index.php?page=devise">Devise</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'structure') ? 'active' : ''; ?>" href="index.php?page=structure">Structure</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'user') ? 'active' : ''; ?>" href="index.php?page=user">Utilisateur</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'appel-offre') ? 'active' : ''; ?>" href="index.php?page=appel-offre">Appel d'offre</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'banque') ? 'active' : ''; ?>" href="index.php?page=banque">Banque</a></li>
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'agence') ? 'active' : ''; ?>" href="index.php?page=agence">Agence</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'fournisseur' || $currentPage == 'liste-fournisseur') ? 'active' : ''; ?>" href="index.php?page=liste-fournisseur">Fournisseur</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'pays' || $currentPage == 'liste-pays') ? 'active' : ''; ?>" href="index.php?page=liste-pays">Pays</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'devise' || $currentPage == 'liste-devise') ? 'active' : ''; ?>" href="index.php?page=liste-devise">Devise</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'structure' || $currentPage == 'liste-structure') ? 'active' : ''; ?>" href="index.php?page=liste-structure">Structure</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'user' || $currentPage == 'liste-user') ? 'active' : ''; ?>" href="index.php?page=liste-user">Utilisateur</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'appel-offre') ? 'active' : ''; ?>" href="index.php?page=liste-appels-offre">Appel d'offre</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'banque' || $currentPage == 'liste-banque') ? 'active' : ''; ?>" href="index.php?page=liste-banque">Banque</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'agence' || $currentPage == 'liste-agence') ? 'active' : ''; ?>" href="index.php?page=liste-agence">Agence</a></li>
                             </ul>
                         </div>
                     </li>
                     
                     <li class="nav-item">
-                        <a class="nav-link <?php echo ($currentPage == 'garantie') ? 'active' : ''; ?>" href="index.php?page=garantie">
+                        <a class="nav-link <?php echo ($currentPage == 'garantie') ? 'active' : ''; ?>" href="index.php?page=liste-garanties">
                             <i class="fas fa-shield-alt"></i> <span>Ajouter Garantie</span>
                         </a>
                     </li>
@@ -212,5 +228,21 @@ $isAdminMenuOpen = in_array($currentPage, $adminPages);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <script>
+        // Keep dropdown menu open when navigating between admin pages
+        const adminSubmenuCollapse = document.getElementById('adminSubmenu');
+        if (adminSubmenuCollapse) {
+            const links = adminSubmenuCollapse.querySelectorAll('a');
+            links.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // Keep the collapse open by preventing it from closing
+                    const collapse = new bootstrap.Collapse(adminSubmenuCollapse, {
+                        toggle: false
+                    });
+                });
+            });
+        }
+    </script>
 </body>
 </html>

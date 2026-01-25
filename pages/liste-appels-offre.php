@@ -20,7 +20,7 @@ $appels_offre = $result->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="content-header">
     <div class="d-flex justify-content-between align-items-center">
-        <h2><i class="fas fa-file-invoice me-2"></i>Liste des Appels d'Offre</h2>
+        <h1 class="page-title"><i class="fas fa-file-invoice me-2"></i>Liste des Appels d'Offre</h1>
         <a href="index.php?page=appel-offre" class="btn ajouter">
             <i class="fas fa-plus"></i> Ajouter un Appel d'Offre
         </a>
