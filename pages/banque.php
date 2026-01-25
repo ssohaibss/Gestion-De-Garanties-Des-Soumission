@@ -1,181 +1,104 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
+$pdo = getDBConnection();
 
-// Récupération des données avec sécurité pour les clés 'id' et 'code'
-$banques_stmt = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC");
-$banques = $banques_stmt->fetchAll(PDO::FETCH_ASSOC);
+$edit_data = null;
+if (isset($_GET['edit'])) {
+    $stmt = $pdo->prepare("SELECT * FROM banque WHERE id = ?");
+    $stmt->execute([$_GET['edit']]);
+    $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 ?>
 
-<div class="content-header">
-    <h2><i class="fas fa-university"></i> Gestion des Banques</h2>
+<div class="content-header mb-4">
+    <h2><i class="fas fa-university me-2"></i>Gestion des Banques</h2>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <i class="fas fa-edit"></i> <span id="formTitle">Ajouter une Banque</span>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header text-white fw-bold" style="background-color: #486a70;">
+        <i class="fas fa-edit me-2"></i> 
+        <span><?= $edit_data ? "Modifier la banque : " . htmlspecialchars($edit_data['nom_banque']) : "Ajouter une nouvelle banque" ?></span>
     </div>
     <div class="card-body">
-        <form id="banqueForm" action="process.php" method="POST" novalidate>
+        <form id="banqueForm" novalidate>
             <input type="hidden" name="form_type" value="banque">
-            <input type="hidden" name="id" id="banqueId" value="">
+            <input type="hidden" name="id" id="banqueId" value="<?= $edit_data['id'] ?? '' ?>">
             
             <div class="row">
                 <div class="col-md-4 mb-3">
-                    <label class="form-label">Code Banque <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="code" id="banqueCode" placeholder="Ex: BNA" required>
+                    <label class="form-label fw-bold">
+                        Code Banque <span class="text-danger" <?= $edit_data ? 'style="display:none;"' : '' ?>>*</span>
+                    </label>
+                    <input type="text" class="form-control intel-input" name="code" id="banqueCode" 
+                           value="<?= $edit_data['code'] ?? '' ?>" required
+                           data-pattern="^[A-Z]{3,5}$" 
+                           data-msg="3 à 5 lettres uniquement (pas de chiffres).">
                     <div class="invalid-feedback"></div>
+                    <?php if ($edit_data): ?>
+                        <small class="text-muted d-block mt-1"><strong>Le code identifiant de la banque</strong></small>
+                    <?php endif; ?>
                 </div>
                 <div class="col-md-8 mb-3">
-                    <label class="form-label">Nom de la Banque <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="nom_banque" id="banqueNom" placeholder="Ex: Banque Nationale d'Algérie" required>
+                    <label class="form-label fw-bold">Nom de la Banque <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control intel-input" name="nom_banque" id="banqueNom" 
+                           value="<?= $edit_data['nom_banque'] ?? '' ?>" required
+                           data-pattern="^[a-zA-ZÀ-ÿ0-9\s\-\.']{3,}$" 
+                           data-msg="Nom invalide (min. 3 car.).">
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
             
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary ajouter" id="submitBtn">
-                    <i class="fas fa-save"></i> Enregistrer
+                <button type="submit" class="btn ajouter shadow-sm">
+                    <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
+                    <?= $edit_data ? 'Mettre à jour la banque' : 'Enregistrer la banque' ?>
                 </button>
-                <button type="button" class="btn btn-secondary d-none" id="cancelEdit">Annuler</button>
+                <a href="index.php?page=liste-banque" class="btn btn-secondary shadow-sm">Annuler / Retour</a>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card mt-4">
-    <div class="card-header"><i class="fas fa-list"></i> Liste des Banques</div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Code</th>
-                        <th>Nom de la Banque</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($banques)): ?>
-                        <tr><td colspan="3" class="text-center py-3">Aucune banque enregistrée.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($banques as $b): 
-                            $currentId = $b['id'] ?? $b['Id'] ?? 0;
-                        ?>
-                        <tr>
-                            <td><strong><?= htmlspecialchars($b['code'] ?? 'N/A') ?></strong></td>
-                            <td><?= htmlspecialchars($b['nom_banque'] ?? 'Inconnu') ?></td>
-                            <td>
-                                <button class="btn btn-sm eye text-white edit-banque" 
-                                        data-banque='<?= htmlspecialchars(json_encode($b), ENT_QUOTES, 'UTF-8') ?>'>
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger delete-banque" 
-                                        data-id="<?= $currentId ?>" 
-                                        data-nom="<?= htmlspecialchars($b['nom_banque'] ?? '') ?>">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
 <script>
-const banqueForm = document.getElementById('banqueForm');
-document.getElementById('banqueNom').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-']/g, '');
-});
-const codeInput = document.getElementById('banqueCode');
-codeInput.addEventListener('input', function() {
-   this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
-});
-// --- AJOUT / MODIFICATION ---
-banqueForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    banqueForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-
-    try {
-        const res = await fetch('process.php', { method: 'POST', body: new FormData(banqueForm) });
-        const data = await res.json();
-        
-        if (data.ok) {
-            Swal.fire({ 
-                icon: 'success', 
-                title: 'Succès', 
-                text: 'Données enregistrées', 
-                timer: 1500,
-                showConfirmButton: false,
-                timerProgressBar: true
-            }).then(() => location.reload());
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = banqueForm.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    input.nextElementSibling.textContent = msg;
-                }
-            }
-        } else {
-            Swal.fire('Erreur', data.message, 'error');
+document.querySelectorAll('.intel-input').forEach(input => {
+    input.addEventListener('input', function() {
+        // Règle spécifique : Code en Lettres MAJUSCULES uniquement (pas de chiffres)
+        if(this.id === 'banqueCode') {
+            this.value = this.value.replace(/[^a-zA-Z]/g, '').toUpperCase();
         }
-    } catch (err) { Swal.fire('Erreur', 'Erreur de connexion', 'error'); }
-});
-
-// --- REMPLIR FORMULAIRE ---
-document.querySelectorAll('.edit-banque').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const b = JSON.parse(this.dataset.banque);
-        document.getElementById('formTitle').textContent = "Modifier : " + (b.nom_banque ?? '');
-        document.getElementById('banqueId').value = b.id ?? b.Id;
-        document.getElementById('banqueCode').value = b.code ?? '';
-        document.getElementById('banqueNom').value = b.nom_banque ?? '';
-        document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync"></i> Mettre à jour';
-        document.getElementById('cancelEdit').classList.remove('d-none');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        const pattern = new RegExp(this.dataset.pattern);
+        if (this.value !== "" && !pattern.test(this.value)) {
+            this.classList.add('is-invalid');
+            const feedback = this.closest('.mb-3').querySelector('.invalid-feedback');
+            if (feedback) feedback.textContent = this.dataset.msg;
+        } else {
+            this.classList.remove('is-invalid');
+        }
     });
 });
 
-document.getElementById('cancelEdit').addEventListener('click', () => location.reload());
+document.getElementById('banqueForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (document.querySelectorAll('.is-invalid').length > 0) return;
 
-// --- SUPPRESSION ---
-document.querySelectorAll('.delete-banque').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const id = this.dataset.id;
-        const nom = this.dataset.nom;
-
-        Swal.fire({
-            title: 'Confirmation',
-            text: `Voulez-vous supprimer "${nom}" ?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Oui, supprimer'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_banque');
-                fd.append('id', id);
-
-                const res = await fetch('process.php', { method: 'POST', body: fd });
-                const data = await res.json();
-                
-                if (data.ok) {
-                    Swal.fire({ 
-                        title: 'Supprimé !', 
-                        icon: 'success', 
-                        timer: 1500,
-                        showConfirmButton: false,
-                        timerProgressBar: true
-                    }).then(() => location.reload());
-                } else {
-                    Swal.fire('Impossible', data.message, 'error');
-                }
-            }
+    const res = await fetch('process.php', { method: 'POST', body: new FormData(e.target) });
+    const data = await res.json();
+    if (data.ok) {
+        await Swal.fire({ 
+            icon: 'success', title: 'Succès', 
+            timer: 1500, showConfirmButton: false, timerProgressBar: true 
         });
-    });
+        window.location.href = 'index.php?page=liste-banque';
+    } else if (data.errors) {
+        for (const [key, msg] of Object.entries(data.errors)) {
+            const input = e.target.querySelector(`[name="${key}"]`);
+            if (input) {
+                input.classList.add('is-invalid');
+                const feedback = input.closest('.mb-3').querySelector('.invalid-feedback');
+                if (feedback) feedback.textContent = msg;
+            }
+        }
+    }
 });
 </script>

@@ -105,6 +105,7 @@ $appels_offre = $pdo->query($query)->fetchAll();
                                     <i class="fas fa-pencil-alt"></i>
                                 </button>
                                 <button class="btn btn-sm btn-danger delete-ao" data-id="<?php echo $ao['id']; ?>" title="Supprimer">
+            
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>

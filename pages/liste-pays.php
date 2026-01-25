@@ -2,49 +2,47 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-$query = "SELECT * FROM pays ORDER BY nom ASC";
-$result = $pdo->query($query);
-$countries = $result->fetchAll(PDO::FETCH_ASSOC);
+$countries = $pdo->query("SELECT * FROM pays ORDER BY nom ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<div class="content-header">
+<div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
-        <h1 class="page-title"><i class="fas fa-globe me-2"></i>Liste des Pays</h1>
-        <a href="index.php?page=pays" class="btn ajouter">
-            <i class="fas fa-plus"></i> Ajouter un Pays
+        <h2 class="page-title"><i class="fas fa-globe me-2"></i>Liste des Pays</h2>
+        <a href="index.php?page=pays" class="btn ajouter shadow-sm">
+            <i class="fas fa-plus me-2"></i>Ajouter un Pays
         </a>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header">
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white fw-bold">
         <i class="fas fa-list me-2"></i>Tous les Pays
     </div>
-    <div class="card-body">
-        <?php if (count($countries) > 0): ?>
+    <div class="card-body p-0">
+        <?php if (!empty($countries)): ?>
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
+            <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>Nom du Pays</th>
+                        <th class="ps-3">Nom du Pays</th>
                         <th>Code ISO</th>
-                        <th class="text-center" style="width: 150px;">Actions</th>
+                        <th class="text-center" style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($countries as $country): ?>
                         <tr>
-                            <td><strong><?php echo htmlspecialchars($country['nom']); ?></strong></td>
-                            <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($country['code_pays']); ?></span></td>
+                            <td class="ps-3"><strong><?= htmlspecialchars($country['nom']); ?></strong></td>
+                            <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($country['code_pays']); ?></span></td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <button class="btn btn-sm eye text-white edit-pays" 
-                                            data-pays='<?= htmlspecialchars(json_encode($country), ENT_QUOTES, 'UTF-8') ?>'>
+                                    <button class="btn btn-sm ajouter text-white edit-pays" 
+                                            data-id="<?= $country['id']; ?>">
                                         <i class="fas fa-pencil-alt"></i>
                                     </button>
                                     <button class="btn btn-sm btn-danger delete-pays" 
-                                            data-id="<?php echo $country['id']; ?>" 
-                                            data-nom="<?php echo htmlspecialchars($country['nom']); ?>">
+                                            data-id="<?= $country['id']; ?>" 
+                                            data-nom="<?= htmlspecialchars($country['nom']); ?>">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -55,7 +53,7 @@ $countries = $result->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-4"><p class="text-muted">Aucun pays enregistré.</p></div>
+        <div class="text-center py-4"><p class="text-muted mb-0">Aucun pays enregistré.</p></div>
         <?php endif; ?>
     </div>
 </div>
@@ -63,8 +61,7 @@ $countries = $result->fetchAll(PDO::FETCH_ASSOC);
 <script>
 document.querySelectorAll('.edit-pays').forEach(btn => {
     btn.addEventListener('click', function() {
-        const p = JSON.parse(this.dataset.pays);
-        window.location.href = 'index.php?page=pays&edit=' + p.id;
+        window.location.href = 'index.php?page=pays&edit=' + this.dataset.id;
     });
 });
 
@@ -74,7 +71,7 @@ document.querySelectorAll('.delete-pays').forEach(btn => {
         const nom = this.dataset.nom;
 
         Swal.fire({
-            title: 'Êtes-vous sûr ?',
+            title: 'Confirmer',
             text: `Supprimer le pays "${nom}" ?`,
             icon: 'warning',
             showCancelButton: true,
@@ -92,15 +89,12 @@ document.querySelectorAll('.delete-pays').forEach(btn => {
                     const data = await res.json();
                     if (data.ok) {
                         await Swal.fire({ 
-                            icon: 'success', 
-                            title: 'Supprimé !', 
-                            timer: 1500, 
-                            showConfirmButton: false,
-                            timerProgressBar: true 
+                            icon: 'success', title: 'Supprimé !', 
+                            timer: 1500, showConfirmButton: false, timerProgressBar: true 
                         });
                         location.reload();
                     }
-                } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }
+                } catch (err) { }
             }
         });
     });

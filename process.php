@@ -156,6 +156,7 @@ case 'delete_pays':
         echo json_encode(['ok' => false, 'message' => 'Erreur lors de la suppression.']);
     }
     exit;
+
                                                          // DEVISE
 
 
@@ -237,44 +238,60 @@ case 'delete_pays':
 
                                                      // STRUCTURE
 
-
-
 case 'structure':
-        $id = $_POST['id'] ?? '';
-        $libelle = trim($_POST['libelle'] ?? '');
-        
-        // On récupère la saisie
-        $code = $_POST['code'] ?? '';
-        // NETTOYAGE : Supprime tout ce qui n'est pas une lettre ou un chiffre, puis met en MAJUSCULES
-        $code = strtoupper(preg_replace('/[^a-zA-Z0-9]/', '', $code));
-        
-        $errors = [];
+    $id = intval($_POST['id'] ?? 0);
+    $is_update = ($id > 0);
+    $libelle = trim($_POST['libelle'] ?? '');
+    
+    // NETTOYAGE : Uniquement des lettres (A-Z). On retire le 0-9 !
+    $code = strtoupper(preg_replace('/[^a-zA-Z]/', '', $_POST['code'] ?? ''));
+    
+    $errors = [];
 
-        if (empty($libelle)) $errors['libelle'] = "Le libellé est requis.";
-        if (empty($code)) $errors['code'] = "Le code est requis.";
+    // 1. Validations de base
+    if (empty($libelle)) $errors['libelle'] = "Le libellé est requis.";
+    if (empty($code)) $errors['code'] = "Le code est requis.";
+    if (strlen($code) < 2 || strlen($code) > 6) {
+        $errors['code'] = "Le code doit faire entre 2 et 6 lettres.";
+    }
 
-        if (!empty($errors)) {
-            echo json_encode(['ok' => false, 'errors' => $errors]);
-            exit;
+    // 2. Vérification manuelle des doublons (pour cibler le bon champ en rouge)
+    $sql_check = "SELECT libelle, code FROM structure WHERE (LOWER(libelle) = LOWER(?) OR code = ?)";
+    if ($is_update) $sql_check .= " AND id != $id";
+    
+    $stmt = $pdo->prepare($sql_check);
+    $stmt->execute([$libelle, $code]);
+    
+    while ($row = $stmt->fetch()) {
+        if (strtolower($row['libelle']) === strtolower($libelle)) {
+            $errors['libelle'] = "Ce libellé existe déjà.";
         }
-
-        try {
-            if ($id) {
-                $stmt = $pdo->prepare("UPDATE structure SET libelle = ?, code = ? WHERE id = ?");
-                $stmt->execute([$libelle, $code, $id]);
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO structure (libelle, code) VALUES (?, ?)");
-                $stmt->execute([$libelle, $code]);
-            }
-            echo json_encode(['ok' => true]);
-        } catch (PDOException $e) {
-            if ($e->getCode() == 23000) {
-                echo json_encode(['ok' => false, 'message' => "Erreur : Le code ou le libellé existe déjà."]);
-            } else {
-                echo json_encode(['ok' => false, 'message' => "Erreur base de données."]);
-            }
+        if ($row['code'] === $code) {
+            $errors['code'] = "Ce code acronyme existe déjà.";
         }
-        break;
+    }
+
+    // Si on a des erreurs, on les renvoie immédiatement au format attendu par le JS
+    if (!empty($errors)) {
+        echo json_encode(['ok' => false, 'errors' => $errors]);
+        exit;
+    }
+
+    try {
+        if ($is_update) {
+            $stmt = $pdo->prepare("UPDATE structure SET libelle = ?, code = ? WHERE id = ?");
+            $stmt->execute([$libelle, $code, $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO structure (libelle, code) VALUES (?, ?)");
+            $stmt->execute([$libelle, $code]);
+        }
+        echo json_encode(['ok' => true]);
+    } catch (PDOException $e) {
+        echo json_encode(['ok' => false, 'message' => "Erreur technique : " . $e->getMessage()]);
+    }
+    exit;
+    break;
+
 
                                                      case 'delete_structure':
         $id = $_POST['id'] ?? '';
@@ -492,26 +509,38 @@ case 'appel_offre':
                                                      // BANQUE
 
 
-      case 'banque':
+     case 'banque':
     $id = intval($_POST['id'] ?? 0);
     $is_update = ($id > 0);
-    $code = strtoupper(trim($_POST['code'] ?? ''));
+    
+    // Nettoyage : On force les majuscules et on enlève TOUT ce qui n'est pas une lettre
+    $code = strtoupper(preg_replace('/[^a-zA-Z]/', '', $_POST['code'] ?? ''));
     $nom  = trim($_POST['nom_banque'] ?? '');
     $errors = [];
 
     // Validation
-    if ($code === '') $errors['code'] = 'Le code est obligatoire.';
-    if ($nom === '') $errors['nom_banque'] = 'Le nom est obligatoire.';
-    if (strlen($code) > 5) $errors['code'] = "Le code banque est trop long.";
-    if (strlen($code) < 3) $errors['code'] = "Le code banque est trop court.";
-    if (empty($code)) $errors['code'] = 'Le code est requis.';
+    if ($code === '') {
+        $errors['code'] = 'Le code est obligatoire.';
+    } elseif (strlen($code) < 3 || strlen($code) > 5) {
+        $errors['code'] = "Le code doit contenir entre 3 et 5 lettres.";
+    }
 
-    // Unicité
+    if ($nom === '') {
+        $errors['nom_banque'] = 'Le nom est obligatoire.';
+    }
+
+    // Unicité avec protection contre les injections SQL
     $sql_check = "SELECT code, nom_banque FROM banque WHERE (code = ? OR nom_banque = ?)";
-    if ($is_update) $sql_check .= " AND id != $id";
+    $params = [$code, $nom];
+    
+    if ($is_update) {
+        $sql_check .= " AND id != ?";
+        $params[] = $id;
+    }
     
     $stmt = $pdo->prepare($sql_check);
-    $stmt->execute([$code, $nom]);
+    $stmt->execute($params);
+    
     while ($row = $stmt->fetch()) {
         if ($row['code'] === $code) $errors['code'] = 'Ce code existe déjà.';
         if ($row['nom_banque'] === $nom) $errors['nom_banque'] = 'Ce nom existe déjà.';
@@ -532,16 +561,22 @@ case 'appel_offre':
         }
         echo json_encode(['ok' => true]);
     } catch (PDOException $e) {
-        echo json_encode(['ok' => false, 'message' => 'Erreur technique.']);
+        // En cas d'erreur SQL, on renvoie un JSON propre au lieu d'une erreur brute
+        echo json_encode(['ok' => false, 'message' => 'Erreur technique en base de données.']);
     }
     exit;
 
 case 'delete_banque':
     $id = intval($_POST['id'] ?? 0);
-    if ($pdo->prepare("DELETE FROM banque WHERE id = ?")->execute([$id])) {
-        echo json_encode(['ok' => true]);
-    } else {
-        echo json_encode(['ok' => false, 'message' => "Erreur de suppression."]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM banque WHERE id = ?");
+        if ($stmt->execute([$id])) {
+            echo json_encode(['ok' => true]);
+        } else {
+            echo json_encode(['ok' => false, 'message' => "Erreur de suppression."]);
+        }
+    } catch (PDOException $e) {
+        echo json_encode(['ok' => false, 'message' => "Cette banque ne peut pas être supprimée (liée à d'autres données)."]);
     }
     exit;
 
@@ -549,64 +584,84 @@ case 'delete_banque':
                                                      // AGENCE
 
 
-      case 'agence':
-    $id = intval($_POST['id'] ?? 0);
-    $is_update = ($id > 0);
-    $code = strtoupper(trim($_POST['code'] ?? ''));
-    $nom = trim($_POST['nom'] ?? '');
-    $adresse = trim($_POST['adresse'] ?? '');
-    $banqueID = $_POST['banqueID'] ?? '';
-    $errors = [];
+        case 'agence':
+            $id = intval($_POST['id'] ?? 0);
+            $is_update = ($id > 0);
+            
+            // Nettoyage strict : Majuscules + suppression de TOUS les espaces + tirets autorisés
+            $code      = strtoupper(preg_replace('/\s+/', '', $_POST['code'] ?? ''));
+            $nom       = trim($_POST['nom'] ?? '');
+            $adresse   = trim($_POST['adresse'] ?? '');
+            $banqueID  = $_POST['banqueID'] ?? '';
+            $errors    = [];
 
-    // Validation
-    if ($code === '') $errors['code'] = 'Le code agence est obligatoire.';
-    if ($nom === '') $errors['nom'] = 'Le nom de l\'agence est obligatoire.';
-    if ($adresse === '') $errors['adresse'] = 'L\'adresse est obligatoire.';
-    if ($banqueID === '') $errors['banqueID'] = 'Veuillez choisir une banque.';
+            // Validation des champs obligatoires
+            if ($code === '') {
+                $errors['code'] = 'Le code agence est obligatoire.';
+            } elseif (strlen($code) < 3 || strlen($code) > 10) {
+                $errors['code'] = "Le code doit contenir entre 3 et 10 caractères.";
+            }
 
-    if (empty($errors)) {
-        // Unicité du Code
-        $sql_code = "SELECT 1 FROM agence WHERE code = ?";
-        if($is_update) $sql_code .= " AND id != $id";
-        $stmt = $pdo->prepare($sql_code);
-        $stmt->execute([$code]);
-        if ($stmt->fetch()) $errors['code'] = 'Ce code agence existe déjà.';
+            if ($nom === '')     $errors['nom'] = 'Le nom de l\'agence est obligatoire.';
+            if ($adresse === '') $errors['adresse'] = 'L\'adresse est obligatoire.';
+            if ($banqueID === '') $errors['banqueID'] = 'Veuillez choisir une banque.';
 
-        // Unicité ABSOLUE du Nom (comme demandé)
-        $sql_nom = "SELECT 1 FROM agence WHERE nom = ?";
-        if($is_update) $sql_nom .= " AND id != $id";
-        $stmt = $pdo->prepare($sql_nom);
-        $stmt->execute([$nom]);
-        if ($stmt->fetch()) $errors['nom'] = 'Ce nom d\'agence existe déjà.';
-    }
+            if (empty($errors)) {
+                // Unicité du Code (Préparation sécurisée)
+                $sql_code = "SELECT 1 FROM agence WHERE code = ?";
+                $params_code = [$code];
+                if($is_update) {
+                    $sql_code .= " AND id != ?";
+                    $params_code[] = $id;
+                }
+                $stmt = $pdo->prepare($sql_code);
+                $stmt->execute($params_code);
+                if ($stmt->fetch()) $errors['code'] = 'Ce code agence existe déjà.';
 
-    if (!empty($errors)) {
-        echo json_encode(['ok' => false, 'errors' => $errors]);
-        exit;
-    }
+                // Unicité du Nom
+                $sql_nom = "SELECT 1 FROM agence WHERE nom = ?";
+                $params_nom = [$nom];
+                if($is_update) {
+                    $sql_nom .= " AND id != ?";
+                    $params_nom[] = $id;
+                }
+                $stmt = $pdo->prepare($sql_nom);
+                $stmt->execute($params_nom);
+                if ($stmt->fetch()) $errors['nom'] = 'Ce nom d\'agence existe déjà.';
+            }
 
-    try {
-        if ($is_update) {
-            $stmt = $pdo->prepare("UPDATE agence SET code=?, nom=?, adresse=?, banqueID=? WHERE id=?");
-            $stmt->execute([$code, $nom, $adresse, $banqueID, $id]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO agence (code, nom, adresse, banqueID) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$code, $nom, $adresse, $banqueID]);
-        }
-        echo json_encode(['ok' => true]);
-    } catch (PDOException $e) {
-        echo json_encode(['ok' => false, 'message' => 'Erreur technique serveur.']);
-    }
-    exit;
+            if (!empty($errors)) {
+                echo json_encode(['ok' => false, 'errors' => $errors]);
+                exit;
+            }
 
-    case 'delete_agence':
-    $id = intval($_POST['id'] ?? 0);
-    if ($pdo->prepare("DELETE FROM agence WHERE id = ?")->execute([$id])) {
-        echo json_encode(['ok' => true]);
-    } else {
-        echo json_encode(['ok' => false, 'message' => 'Erreur lors de la suppression en base de données.']);
-    }
-    exit;
+            try {
+                if ($is_update) {
+                    $stmt = $pdo->prepare("UPDATE agence SET code=?, nom=?, adresse=?, banqueID=? WHERE id=?");
+                    $stmt->execute([$code, $nom, $adresse, $banqueID, $id]);
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO agence (code, nom, adresse, banqueID) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$code, $nom, $adresse, $banqueID]);
+                }
+                echo json_encode(['ok' => true]);
+            } catch (PDOException $e) {
+                echo json_encode(['ok' => false, 'message' => 'Erreur technique serveur : ' . $e->getMessage()]);
+            }
+            exit;
+
+        case 'delete_agence':
+            $id = intval($_POST['id'] ?? 0);
+            try {
+                $stmt = $pdo->prepare("DELETE FROM agence WHERE id = ?");
+                if ($stmt->execute([$id])) {
+                    echo json_encode(['ok' => true]);
+                } else {
+                    echo json_encode(['ok' => false, 'message' => 'Erreur lors de la suppression.']);
+                }
+            } catch (PDOException $e) {
+                echo json_encode(['ok' => false, 'message' => 'Impossible de supprimer cette agence car elle est utilisée ailleurs.']);
+            }
+            exit;
 
                                                          // GARANTIE
 
@@ -722,7 +777,82 @@ case 'delete_garantie':
 
     exit;
     break;   
+
+    //                                          AUTHENTIFICATION
+    case 'authentification':
+        header('Content-Type: application/json');
+        $garantie_id = intval($_POST['garantie_id'] ?? 0);
+        $num_auth     = trim($_POST['num_auth'] ?? '');
+        $date_auth    = $_POST['date_auth'] ?? '';
+        $errors       = [];
+
+        // 1. Validations de base
+        if ($garantie_id <= 0) $errors['system'] = "Garantie invalide.";
+        if (empty($num_auth))  $errors['num_auth'] = "Le numéro d'authentification est requis.";
+        if (empty($date_auth)) $errors['date_auth'] = "La date est requise.";
+        
+        // 2. Gestion de l'upload
+        $file_path = "";
+        if (empty($errors) && isset($_FILES['scan_auth']) && $_FILES['scan_auth']['error'] === 0) {
+            $upload_dir = 'uploads/authentifications/';
             
+            // Créer le dossier s'il n'existe pas
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+
+            $extension = strtolower(pathinfo($_FILES['scan_auth']['name'], PATHINFO_EXTENSION));
+            $allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png'];
+
+            if (!in_array($extension, $allowed_extensions)) {
+                $errors['scan_auth'] = "Format non autorisé (PDF, JPG, PNG uniquement).";
+            } else {
+                // Nom unique pour éviter d'écraser des fichiers
+                $filename = 'auth_' . $garantie_id . '_' . time() . '.' . $extension;
+                $target_file = $upload_dir . $filename;
+
+                if (move_uploaded_file($_FILES['scan_auth']['tmp_name'], $target_file)) {
+                    $file_path = $target_file;
+                } else {
+                    $errors['scan_auth'] = "Erreur lors du transfert du fichier.";
+                }
+            }
+        } else {
+            $errors['scan_auth'] = "Le scan du document est obligatoire.";
+        }
+
+        if (!empty($errors)) {
+            echo json_encode(['ok' => false, 'errors' => $errors]);
+            exit;
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // A. Insertion dans la table authentification
+            $sqlAuth = "INSERT INTO authentification (num_authentification, date_authentification, garantie_soumissionID) 
+                        VALUES (?, ?, ?)";
+            $stmtAuth = $pdo->prepare($sqlAuth);
+            $stmtAuth->execute([$num_auth, $date_auth, $garantie_id]);
+            $auth_id = $pdo->lastInsertId();
+
+            // B. Insertion dans la table document_authentification
+            $sqlDoc = "INSERT INTO document_authentification (nom_fichier, chemin_fichier, authentificationID) 
+                       VALUES (?, ?, ?)";
+            $stmtDoc = $pdo->prepare($sqlDoc);
+            $stmtDoc->execute([$filename, $file_path, $auth_id]);
+
+            $pdo->commit();
+            echo json_encode(['ok' => true]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            if (isset($target_file) && file_exists($target_file)) unlink($target_file); // Supprimer le fichier si SQL échoue
+            echo json_encode(['ok' => false, 'message' => "Erreur SQL : " . $e->getMessage()]);
+        
+        }
+        exit;
+        break;
+
         default:
             $_SESSION['error'] = 'Type de formulaire non reconnu';
             header('Location: index.php');

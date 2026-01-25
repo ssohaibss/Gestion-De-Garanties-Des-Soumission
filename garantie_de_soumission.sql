@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : mar. 20 jan. 2026 à 15:28
+-- Généré le : dim. 25 jan. 2026 à 18:34
 -- Version du serveur : 8.3.0
 -- Version de PHP : 8.2.18
 
@@ -143,8 +143,7 @@ CREATE TABLE IF NOT EXISTS `banque` (
 INSERT INTO `banque` (`id`, `code`, `nom_banque`) VALUES
 (38, 'BNA', 'Banque Nationale d\'Algérie'),
 (39, 'BEA', 'Banque Extérieure d\'Algérie'),
-(40, 'CPA', 'Crédit Populaire d\'Algérie'),
-(46, 'A BN', 'test');
+(40, 'CPA', 'Crédit Populaire d\'Algérie');
 
 -- --------------------------------------------------------
 
@@ -160,7 +159,7 @@ CREATE TABLE IF NOT EXISTS `devise` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `libelle` (`libelle`)
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `devise`
@@ -321,7 +320,7 @@ CREATE TABLE IF NOT EXISTS `pays` (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `code_pays` (`code_pays`),
   UNIQUE KEY `Nom` (`nom`)
-) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `pays`
@@ -331,7 +330,8 @@ INSERT INTO `pays` (`id`, `nom`, `code_pays`) VALUES
 (1, 'Algérie', 'DZ'),
 (2, 'France', 'FRA'),
 (49, 'Chine', 'CN'),
-(51, 'État-Unis', 'USA');
+(51, 'État-Unis', 'USA'),
+(54, 'dazdaz', 'AZD');
 
 -- --------------------------------------------------------
 
@@ -423,7 +423,7 @@ CREATE TABLE IF NOT EXISTS `structure` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `libelle` (`libelle`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Déchargement des données de la table `structure`

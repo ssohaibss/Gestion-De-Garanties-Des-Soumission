@@ -1,9 +1,9 @@
 <?php
 $host = 'localhost';
-$port = 8889;
+$port = 3306;
 $dbname = 'garantie_de_soumission';
 $user = 'root';
-$pass = 'root';
+$pass = '';
 $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
 
 $options = [

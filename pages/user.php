@@ -2,264 +2,144 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// --- SÉCURITÉ : VÉRIFICATION DE L'EXISTENCE DU COMPTE ---
-// Si l'utilisateur a été supprimé par un autre admin, on le déconnecte immédiatement
-if (isset($_SESSION['user_id'])) {
-    $check_stmt = $pdo->prepare("SELECT id FROM utilisateur WHERE id = ?");
-    $check_stmt->execute([$_SESSION['user_id']]);
-    if (!$check_stmt->fetch()) {
-        session_destroy();
-        header("Location: login.php?error=account_deleted");
-        exit();
-    }
+$edit_data = null;
+if (isset($_GET['edit'])) {
+    $stmt = $pdo->prepare("SELECT * FROM utilisateur WHERE id = ?");
+    $stmt->execute([$_GET['edit']]);
+    $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-$roles_stmt = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle");
-$roles = $roles_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$users_stmt = $pdo->query("
-    SELECT u.*, r.libelle as role_nom 
-    FROM utilisateur u 
-    LEFT JOIN role r ON u.roleID = r.id 
-    ORDER BY u.nom ASC
-");
-$users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
+$roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<div class="content-header">
-    <h2><i class="fas fa-user"></i> Gestion des Utilisateurs</h2>
+<div class="content-header mb-4">
+    <h2><i class="fas fa-user-circle me-2"></i>Gestion des Utilisateurs</h2>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <i class="fas fa-user-edit"></i> <span id="formTitle">Nouveau compte utilisateur</span>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header text-white fw-bold" style="background-color: #486a70;">
+        <i class="fas fa-user-edit me-2"></i> 
+        <span id="formTitle"><?= $edit_data ? "Modifier : " . htmlspecialchars($edit_data['username']) : "Nouveau compte utilisateur" ?></span>
     </div>
     <div class="card-body">
-        <form id="userForm" action="process.php" method="POST" novalidate>
+        <form id="userForm" novalidate>
             <input type="hidden" name="form_type" value="user">
-            <input type="hidden" name="id" id="userId" value="">
+            <input type="hidden" name="id" id="userId" value="<?= $edit_data['id'] ?? '' ?>">
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Nom <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="nomInput" name="nom" required>
+                    <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control intel-input" name="nom" id="nomInput" 
+                           value="<?= $edit_data['nom'] ?? '' ?>" required
+                           data-pattern="^[a-zA-ZÀ-ÿ\s\-]{3,}$" data-msg="Lettres uniquement (min. 3).">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Prénom <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="prenomInput" name="prenom" required>
+                    <label class="form-label fw-bold">Prénom <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control intel-input" name="prenom" id="prenomInput"
+                           value="<?= $edit_data['prenom'] ?? '' ?>" required
+                           data-pattern="^[a-zA-ZÀ-ÿ\s\-]{3,}$" data-msg="Lettres uniquement (min. 3).">
                     <div class="invalid-feedback"></div>
                 </div>
             </div>
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Email <span class="text-danger">*</span></label>
-                    <input type="email" class="form-control" name="email" placeholder="Ex: Xyw@sonatrach.com" required>
+                    <label class="form-label fw-bold">Email Professionnel <span class="text-danger">*</span></label>
+                    <input type="email" class="form-control intel-input" name="email" id="emailInput"
+                           value="<?= $edit_data['email'] ?? '' ?>" required
+                           data-pattern="^[a-zA-Z0-9._%+-]+@sonatrach\.com$" data-msg="Doit se terminer par @sonatrach.com">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Rôle <span class="text-danger">*</span></label>
+                    <label class="form-label fw-bold">Rôle <span class="text-danger">*</span></label>
                     <select class="form-select" name="role" required>
                         <option value="">Sélectionner un rôle</option>
                         <?php foreach ($roles as $role): ?>
-                            <option value="<?= $role['id'] ?>"><?= htmlspecialchars($role['libelle']) ?></option>
+                            <option value="<?= $role['id'] ?>" <?= (isset($edit_data['roleID']) && $edit_data['roleID'] == $role['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($role['libelle']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="invalid-feedback"></div>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Nom d'utilisateur (Login) <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="usernameInput" name="username" required>
+                    <label class="form-label fw-bold">Login <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control intel-input" name="username" id="usernameInput"
+                           value="<?= $edit_data['username'] ?? '' ?>" required
+                           data-pattern="^[a-z0-9._\-]{4,}$" data-msg="Min. 4 car. (minuscules/chiffres).">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Mot de passe <span id="passReq" class="text-danger">*</span></label>
+                    <label class="form-label fw-bold">
+                        Mot de passe <span id="passReq" class="text-danger" <?= $edit_data ? 'style="display:none;"' : '' ?>>*</span>
+                    </label>
                     <div class="input-group">
-                        <input type="password" class="form-control" name="password" id="passwordField" placeholder="Min. 8 car. (Maj, Min, Chiffre, Spécial), Ex: P@ssw0rd" >
-                        <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                            <i class="fas fa-eye" id="eyeIcon"></i>
-                        </button>
+                        <input type="password" class="form-control intel-input" name="password" id="passwordField"
+                               data-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+                               data-msg="8 car. min, 1 Maj, 1 Min, 1 Chiffre et 1 Symbole.">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassword"><i class="fas fa-eye"></i></button>
                         <div class="invalid-feedback"></div>
+                    </div>
+                    <small id="passHelp" class="text-muted d-block mt-1">
+                        <?= $edit_data ? "<strong>Laissez vide pour garder l'ancien mot de passe</strong>" : "" ?>
+                    </small>
+                </div>
             </div>
             
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary ajouter" id="submitBtn">
-                    <i class="fas fa-save"></i> Enregistrer
+            <div class="d-flex gap-2 mt-2">
+                <button type="submit" class="btn ajouter shadow-sm">
+                    <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
+                    <?= $edit_data ? 'Mettre à jour l\'utilisateur' : 'Enregistrer l\'utilisateur' ?>
                 </button>
-                <button type="button" class="btn btn-secondary d-none" id="cancelEdit">Annuler</button>
+                <a href="index.php?page=liste-user" class="btn btn-secondary shadow-sm">Annuler / Retour</a>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card mt-4">
-    <div class="card-header"><i class="fas fa-users"></i> Liste des Utilisateurs</div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Login</th>
-                        <th>Nom & Prénom</th>
-                        <th>Email</th>
-                        <th>Rôle</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($users as $user): ?>
-                    <tr>
-                        <td><strong><?= htmlspecialchars($user['username']) ?></strong></td>
-                        <td><?= htmlspecialchars($user['nom'] . ' ' . $user['prenom']) ?></td>
-                        <td><strong><?= htmlspecialchars($user['email']) ?></strong></td>
-                        <td><?= htmlspecialchars($user['role_nom']) ?></td>
-                        <td>
-                            <button class="btn btn-sm eye text-white edit-user" 
-                                    data-user='<?= htmlspecialchars(json_encode($user), ENT_QUOTES, 'UTF-8') ?>'>
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            
-                            <?php if ($user['id'] != $_SESSION['user_id']): ?>
-                                <button class="btn btn-sm btn-danger delete-user" 
-                                        data-id="<?= $user['id'] ?>" 
-                                        data-login="<?= htmlspecialchars($user['username']) ?>">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            <?php else: ?>
-                                <span class="badge bg-light text-dark border">Vous</span>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
 <script>
-const userForm = document.getElementById('userForm');
-const currentUserId = <?= (int)$_SESSION['user_id'] ?>;
-
-document.getElementById('nomInput').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
-});
-
-document.getElementById('prenomInput').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s\-]/g, '');
-});
-document.getElementById('usernameInput').addEventListener('input', function() {
-    this.value = this.value.replace(/[^a-zA-Z0-9À-ÿ\-\-]/g, '');
-});
-
-document.getElementById('togglePassword').addEventListener('click', function() {
-    const passwordField = document.getElementById('passwordField');
-    const eyeIcon = document.getElementById('eyeIcon');
-    passwordField.type = (passwordField.type === 'password') ? 'text' : 'password';
-    eyeIcon.classList.toggle('fa-eye');
-    eyeIcon.classList.toggle('fa-eye-slash');
-});
-
-userForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    userForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-
-    const emailField = userForm.querySelector('[name="email"]');
-    const emailValue = emailField.value.trim().toLowerCase();
-    
-    if (emailValue !== "" && !emailValue.endsWith('@sonatrach.com')) {
-        emailField.classList.add('is-invalid');
-        const feedback = emailField.closest('.mb-3').querySelector('.invalid-feedback');
-        if (feedback) feedback.textContent = "L'adresse doit être @sonatrach.com";
-        return;
-    }
-
-    try {
-        const response = await fetch('process.php', { 
-            method: 'POST', 
-            body: new FormData(userForm) 
-        });
-        const data = await response.json();
+// La logique intel-input avec data-pattern reste la même
+document.querySelectorAll('.intel-input').forEach(input => {
+    input.addEventListener('input', function() {
+        if(this.id === 'nomInput') this.value = this.value.toUpperCase();
+        if(this.id === 'usernameInput' || this.id === 'emailInput') this.value = this.value.toLowerCase();
         
-        if (data.ok) {
-            Swal.fire({ icon: 'success', title: 'Succès', timer: 1500, showConfirmButton: false }).then(() => location.reload());
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = userForm.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    const realFeedback = input.closest('.mb-3').querySelector('.invalid-feedback');
-                    if (realFeedback) realFeedback.textContent = msg;
-                }
-            }
-        } else {
-            Swal.fire('Erreur', data.message, 'error');
-        }
-    } catch (err) { 
-        Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
-    }
-});
-
-document.querySelectorAll('.edit-user').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const user = JSON.parse(this.dataset.user);
-        document.getElementById('formTitle').textContent = "Modifier : " + user.username;
-        document.getElementById('userId').value = user.id;
-        userForm.querySelector('[name="nom"]').value = user.nom;
-        userForm.querySelector('[name="prenom"]').value = user.prenom;
-        userForm.querySelector('[name="email"]').value = user.email;
-        userForm.querySelector('[name="username"]').value = user.username;
-        userForm.querySelector('[name="role"]').value = user.roleID;
-        document.getElementById('passReq').classList.add('d-none');
-        document.getElementById('passHelp').innerHTML = "<strong>Laissez vide pour conserver le mot de passe actuel</strong>";
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.innerHTML = '<i class="fas fa-sync"></i> Mettre à jour';
-        submitBtn.classList.replace('btn-primary', 'btn-warning');
-        document.getElementById('cancelEdit').classList.remove('d-none');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-});
-
-document.getElementById('cancelEdit').addEventListener('click', () => location.reload());
-
-document.querySelectorAll('.delete-user').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const id = parseInt(this.dataset.id);
-        const login = this.dataset.login;
-
-        if (id === currentUserId) {
-            Swal.fire('Action impossible', "Vous ne pouvez pas supprimer votre propre compte.", 'error');
+        const isUpdate = document.getElementById('userId').value !== "";
+        if (isUpdate && this.name === "password" && this.value === "") {
+            this.classList.remove('is-invalid');
             return;
         }
 
-        Swal.fire({
-            title: 'Êtes-vous sûr ?',
-            text: `Supprimer définitivement l'utilisateur "${login}" ?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_user');
-                fd.append('id', id);
-
-                const res = await fetch('process.php', { method: 'POST', body: fd });
-                const data = await res.json();
-                
-                if (data.ok) {
-                    Swal.fire({ title: 'Supprimé !', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => location.reload());
-                } else {
-                    Swal.fire('Erreur', data.message, 'error');
-                }
-            }
-        });
+        const pattern = new RegExp(this.dataset.pattern);
+        if (this.value !== "" && !pattern.test(this.value)) {
+            this.classList.add('is-invalid');
+            const feedback = this.closest('.mb-3')?.querySelector('.invalid-feedback') || this.nextElementSibling;
+            if (feedback) feedback.textContent = this.dataset.msg;
+        } else {
+            this.classList.remove('is-invalid');
+        }
     });
+});
+
+document.getElementById('userForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (document.querySelectorAll('.is-invalid').length > 0) return;
+
+    const res = await fetch('process.php', { method: 'POST', body: new FormData(e.target) });
+    const data = await res.json();
+    if (data.ok) {
+        await Swal.fire({ icon: 'success', title: 'Succès', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+        window.location.href = 'index.php?page=liste-user';
+    }
+});
+
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const f = document.getElementById('passwordField');
+    const i = this.querySelector('i');
+    f.type = (f.type === 'password') ? 'text' : 'password';
+    i.classList.toggle('fa-eye'); i.classList.toggle('fa-eye-slash');
 });
 </script>
