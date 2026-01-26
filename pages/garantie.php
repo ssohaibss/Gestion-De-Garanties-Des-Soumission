@@ -287,10 +287,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
                 </div>
 
             <!-- Section Document PDF -->
-            <div class="card shadow-sm mb-4 border-0">
-                <div class="card-header text-white" style="background-color: #e74c3c;">
-                    <i class="fas fa-file-pdf me-2"></i>Document PDF
-                </div>
+          
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-12">
@@ -303,7 +300,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
                         <div class="col-md-12" id="pdfPreview"></div>
                     </div>
                 </div>
-            </div>
+        
 
             <div class="mt-4">
 
@@ -321,80 +318,6 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
 </div>
 
-
-<div class="card shadow-sm">
-
-    <div class="card-header bg-white fw-bold">
-
-        <i class="fas fa-list me-2"></i>Dernières garanties enregistrées
-
-    </div>
-
-    <div class="card-body p-0">
-
-        <div class="table-responsive">
-
-            <table class="table table-hover align-middle mb-0">
-
-<thead class="table-light">
-
-                    <tr>
-
-                        <th class="ps-3">N° Garantie</th>
-
-                        <th>Fournisseur</th>
-
-                        <th class="text-end">Montant</th>
-
-                        <th class="text-center">Statut</th>
-
-                        <th class="text-center">Actions</th>
-
-                    </tr>
-
-                </thead>
-
-                <tbody>
-
-                    <?php foreach ($recent_garanties as $g): ?>
-
-                    <tr>
-
-                        <td class="ps-3 fw-bold"><?= $g['num_garantie'] ?></td>
-
-                        <td><?= htmlspecialchars($g['nom_entreprise']) ?></td>
-
-                        <td class="text-end fw-bold"><?= number_format($g['montant_garantie'], 2) ?> <?= $g['devise_code'] ?></td>
-
-                        <td class="text-center"><span class="badge bg-light text-dark border"><?= $g['statut_nom'] ?></span></td>
-
-<td class="text-center">
-
-                            <div class="btn-group">
-
-                                <a href="index.php?page=details-garantie&id=<?= $g['id'] ?>" class="btn btn-sm eye text-white"><i class="fas fa-eye"></i></a>
-
-                                <button class="btn btn-sm edit text-white edit-btn" data-garantie='<?= json_encode($g, JSON_HEX_APOS) ?>'><i class="fas fa-pencil-alt"></i></button>
-
-                                <button class="btn btn-sm btn-danger delete-btn" data-id="<?= $g['id'] ?>" data-num="<?= $g['num_garantie'] ?>"><i class="fas fa-trash"></i></button>
-
-                            </div>
-
-                        </td>
-
-                    </tr>
-
-                    <?php endforeach; ?>
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
-</div>
 
 
 <script>
