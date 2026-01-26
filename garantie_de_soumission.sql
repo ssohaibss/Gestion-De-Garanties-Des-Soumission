@@ -31,14 +31,14 @@ DROP TABLE IF EXISTS `agence`;
 CREATE TABLE IF NOT EXISTS `agence` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nom` varchar(50) NOT NULL,
-  `code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `code` varchar(10) CHARACTER SET utf8mb4  NOT NULL,
   `adresse` varchar(255) NOT NULL,
   `banqueID` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `uniq_agence` (`nom`,`adresse`,`banqueID`),
   KEY `fk_banque_agence` (`banqueID`)
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `agence`
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `amendement` (
   KEY `fk_garantie_amendement` (`garantie_soumissionID`),
   KEY `fk_TYPAm_amendement` (`type_amendementID`),
   KEY `fk_utilisateur_amendement` (`utilisateurID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS `appel_offre` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `num_app_offre` (`num_app_offre`),
   KEY `fk_devise_appelOffre` (`deviseID`)
-) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `appel_offre`
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS `authentification` (
   `garantie_soumissionID` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_garantie_authentification` (`garantie_soumissionID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -129,12 +129,12 @@ CREATE TABLE IF NOT EXISTS `authentification` (
 DROP TABLE IF EXISTS `banque`;
 CREATE TABLE IF NOT EXISTS `banque` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(34) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `code` varchar(34) CHARACTER SET utf8mb4  NOT NULL,
   `nom_banque` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `nom_banque` (`nom_banque`)
-) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `banque`
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS `devise` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `libelle` (`libelle`)
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `devise`
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS `document` (
   UNIQUE KEY `code` (`code`),
   KEY `fk_garantie_document` (`garantie_soumissionID`),
   KEY `fk_TYPDoc_document` (`type_documentID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -202,7 +202,7 @@ CREATE TABLE IF NOT EXISTS `document_amendement` (
   `amendementID` int NOT NULL,
   PRIMARY KEY (`documentID`,`amendementID`),
   KEY `fk_amd_docs` (`amendementID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -216,7 +216,7 @@ CREATE TABLE IF NOT EXISTS `document_authentification` (
   `authentificationID` int NOT NULL,
   PRIMARY KEY (`documentID`,`authentificationID`),
   KEY `fk_ath_docs` (`authentificationID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `document_garantie_soumission` (
   `garantie_soumissionID` int NOT NULL,
   PRIMARY KEY (`documentID`,`garantie_soumissionID`),
   KEY `fk_garantie_docs` (`garantie_soumissionID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS `document_liberation` (
   `liberationID` int NOT NULL,
   PRIMARY KEY (`documentID`,`liberationID`),
   KEY `fk_lib_docs` (`liberationID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS `garantie_soumission` (
   KEY `fk_appel_garantie` (`appel_offreID`),
   KEY `fk_statut_garantie` (`statutID`),
   KEY `fk_utilisateur_garantie` (`utilisateurID`)
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `garantie_soumission`
@@ -304,7 +304,7 @@ CREATE TABLE IF NOT EXISTS `liberation` (
   KEY `fk_garantie_liberation` (`garantie_soumissionID`),
   KEY `fk_TYPLib_liberation` (`type_liberationID`),
   KEY `fk_utilisateur_liberation` (`utilisateurID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
 
 -- --------------------------------------------------------
 
@@ -315,12 +315,12 @@ CREATE TABLE IF NOT EXISTS `liberation` (
 DROP TABLE IF EXISTS `pays`;
 CREATE TABLE IF NOT EXISTS `pays` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `nom` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `nom` varchar(255) CHARACTER SET utf8mb4  NOT NULL,
   `code_pays` varchar(11) NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `code_pays` (`code_pays`),
   UNIQUE KEY `Nom` (`nom`)
-) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `pays`
@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS `role` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `role`
@@ -367,7 +367,7 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
   `id` int NOT NULL AUTO_INCREMENT,
   `nom_entreprise` varchar(255) NOT NULL,
   `adresse` varchar(255) NOT NULL,
-  `telephone` varchar(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `telephone` varchar(15) CHARACTER SET utf8mb4  NOT NULL,
   `email` varchar(255) NOT NULL,
   `paysID` int NOT NULL,
   PRIMARY KEY (`id`),
@@ -375,7 +375,7 @@ CREATE TABLE IF NOT EXISTS `soumissionnaire` (
   UNIQUE KEY `nom_entreprise` (`nom_entreprise`),
   UNIQUE KEY `telephone` (`telephone`),
   KEY `fk_pays_soumissionnaire` (`paysID`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `soumissionnaire`
@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS `statut` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `statut`
@@ -418,12 +418,12 @@ INSERT INTO `statut` (`id`, `code`, `libelle`) VALUES
 DROP TABLE IF EXISTS `structure`;
 CREATE TABLE IF NOT EXISTS `structure` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `code` varchar(5) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `code` varchar(5) CHARACTER SET utf8mb4  NOT NULL,
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`),
   UNIQUE KEY `libelle` (`libelle`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `structure`
@@ -447,7 +447,7 @@ CREATE TABLE IF NOT EXISTS `type_amendement` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `type_amendement`
@@ -471,7 +471,7 @@ CREATE TABLE IF NOT EXISTS `type_document` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `type_document`
@@ -496,7 +496,7 @@ CREATE TABLE IF NOT EXISTS `type_liberation` (
   `libelle` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `type_liberation`
@@ -519,13 +519,13 @@ CREATE TABLE IF NOT EXISTS `utilisateur` (
   `username` varchar(50) NOT NULL,
   `nom` varchar(50) NOT NULL,
   `prenom` varchar(50) NOT NULL,
-  `mot_de_pass` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `mot_de_pass` varchar(255) CHARACTER SET utf8mb4  NOT NULL,
   `roleID` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`),
   KEY `fk_role_utilisateur` (`roleID`)
-) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 ;
 
 --
 -- Déchargement des données de la table `utilisateur`

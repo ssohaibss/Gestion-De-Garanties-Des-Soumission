@@ -732,6 +732,8 @@ case 'update_garantie':
 
     // 4. Enregistrement
     try {
+        $pdo->beginTransaction();
+        
         $params = [
             $num_garantie, $montant, $date_e, $date_x, 
             $fournisseurID, $agenceID, $deviseID, $structureID, 
@@ -741,14 +743,70 @@ case 'update_garantie':
         if ($id) {
             $sql = "UPDATE garantie_soumission SET num_garantie=?, montant_garantie=?, date_emission=?, date_expiration=?, soumissionnaireID=?, agenceID=?, deviseID=?, structureID=?, appel_offreID=?, statutID=?, utilisateurID=? WHERE id=?";
             $params[] = $id;
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $garantie_id = $id;
         } else {
             $sql = "INSERT INTO garantie_soumission (num_garantie, montant_garantie, date_emission, date_expiration, soumissionnaireID, agenceID, deviseID, structureID, appel_offreID, statutID, utilisateurID) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $garantie_id = $pdo->lastInsertId();
         }
 
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+    // Gestion de l'upload PDF (single file)
+if (isset($_FILES['pdf_files']) && $_FILES['pdf_files']['error'] === UPLOAD_ERR_OK) {
+    $upload_dir = 'uploads/garanties/';
+    
+    // Créer le dossier s'il n'existe pas
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
+
+    $allowed_extensions = ['pdf'];
+    $max_file_size = 10 * 1024 * 1024; // 10MB
+
+    // Supprimer les anciens documents si édition
+    if ($id) {
+        $oldDocs = $pdo->prepare("SELECT chemin_access FROM document WHERE garantie_soumissionID = ? AND type_documentID = 1");
+        $oldDocs->execute([$id]);
+        foreach ($oldDocs->fetchAll(PDO::FETCH_ASSOC) as $oldDoc) {
+            if (file_exists($oldDoc['chemin_access'])) {
+                unlink($oldDoc['chemin_access']);
+            }
+        }
+        $pdo->prepare("DELETE FROM document WHERE garantie_soumissionID = ? AND type_documentID = 1")->execute([$id]);
+    }
+
+    // Traiter le fichier unique
+    $filename = $_FILES['pdf_files']['name'];
+    $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $file_size = $_FILES['pdf_files']['size'];
+
+    if (in_array($extension, $allowed_extensions) && $file_size <= $max_file_size) {
+        // Nom unique avec timestamp
+        $unique_filename = 'g_' . $garantie_id . '_' . time() . '.pdf';
+        $target_file = $upload_dir . $unique_filename;
+
+        if (move_uploaded_file($_FILES['pdf_files']['tmp_name'], $target_file)) {
+            // Enregistrer dans la table document
+            $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, ?)";
+            $stmtDoc = $pdo->prepare($sqlDoc);
+            $docCode = 'DOC_' . $garantie_id . '_' . time();
+            $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 1]); // Type 1 = GARANTIE
+        } else {
+            // Si le déplacement échoue, on ajoute une erreur mais on ne bloque pas la transaction
+            error_log("Erreur lors du déplacement du fichier PDF pour garantie $garantie_id");
+        }
+    } else {
+        // Fichier invalide, on enregistre dans les logs mais on ne bloque pas
+        error_log("Fichier PDF invalide pour garantie $garantie_id: extension=$extension, size=$file_size");
+    }
+}
+
+        $pdo->commit();
         echo json_encode(['ok' => true]);
     } catch (Exception $e) {
+        $pdo->rollBack();
         echo json_encode(['ok' => false, 'message' => "Erreur : " . $e->getMessage()]);
     }
     exit;
@@ -776,7 +834,162 @@ case 'delete_garantie':
     }
 
     exit;
-    break;   
+    break;
+
+                                                     // AMENDEMENT
+
+case 'amendement':
+    header('Content-Type: application/json');
+    $errors = [];
+    
+    $garantie_id = intval($_POST['garantie_soumissionID'] ?? 0);
+    $num_amendement = intval($_POST['num_amendement'] ?? 0);
+    $date_amendement = trim($_POST['date_amendement'] ?? '');
+    $type_amendementID = intval($_POST['type_amendementID'] ?? 0);
+    $nouveau_montant = !empty($_POST['nouveau_montant']) ? floatval(str_replace([' ', ','], ['', '.'], $_POST['nouveau_montant'])) : null;
+    $nouvelle_date_expiration = !empty($_POST['nouvelle_date_expiration']) ? trim($_POST['nouvelle_date_expiration']) : null;
+    
+    $today = date('Y-m-d');
+    
+    // Validations de base
+    if ($garantie_id <= 0) $errors['garantie_soumissionID'] = "Garantie invalide.";
+    if ($num_amendement <= 0) $errors['num_amendement'] = "Le numéro d'amendement est requis.";
+    if (empty($date_amendement)) $errors['date_amendement'] = "La date d'amendement est requise.";
+    elseif ($date_amendement > $today) $errors['date_amendement'] = "La date ne peut pas être future.";
+    if ($type_amendementID <= 0) $errors['type_amendementID'] = "Le type d'amendement est requis.";
+    
+    // Récupérer le code du type d'amendement
+    $typeCode = '';
+    if ($type_amendementID > 0) {
+        $stmtType = $pdo->prepare("SELECT code FROM type_amendement WHERE id = ?");
+        $stmtType->execute([$type_amendementID]);
+        $typeCode = $stmtType->fetchColumn();
+    }
+    
+    // Validations conditionnelles selon le type
+    if ($typeCode === 'MONTANT' || $typeCode === 'MIXTE') {
+        if (empty($nouveau_montant) || $nouveau_montant <= 0) {
+            $errors['nouveau_montant'] = "Le nouveau montant est requis pour ce type d'amendement.";
+        }
+    }
+    
+    if ($typeCode === 'DATE' || $typeCode === 'MIXTE') {
+        if (empty($nouvelle_date_expiration)) {
+            $errors['nouvelle_date_expiration'] = "La nouvelle date d'expiration est requise pour ce type d'amendement.";
+        } elseif ($nouvelle_date_expiration <= $today) {
+            $errors['nouvelle_date_expiration'] = "La nouvelle date doit être dans le futur.";
+        }
+    }
+    
+    // Vérification unicité du numéro d'amendement
+    if ($num_amendement > 0) {
+        $checkStmt = $pdo->prepare("SELECT id FROM amendement WHERE num_amendement = ?");
+        $checkStmt->execute([$num_amendement]);
+        if ($checkStmt->fetch()) {
+            $errors['num_amendement'] = "Ce numéro d'amendement existe déjà.";
+        }
+    }
+    
+    // Vérifier que la garantie existe
+    if ($garantie_id > 0) {
+        $checkGarantie = $pdo->prepare("SELECT id FROM garantie_soumission WHERE id = ?");
+        $checkGarantie->execute([$garantie_id]);
+        if (!$checkGarantie->fetch()) {
+            $errors['garantie_soumissionID'] = "La garantie sélectionnée n'existe pas.";
+        }
+    }
+    
+    if (!empty($errors)) {
+        echo json_encode(['ok' => false, 'errors' => $errors]);
+        exit;
+    }
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Insérer l'amendement
+        $sql = "INSERT INTO amendement (num_amendement, date_amendement, nouveau_montant, nouvelle_date_expiration, garantie_soumissionID, type_amendementID, utilisateurID) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $num_amendement,
+            $date_amendement,
+            $nouveau_montant,
+            $nouvelle_date_expiration,
+            $garantie_id,
+            $type_amendementID,
+            (int)$_SESSION['user_id']
+        ]);
+        
+        $amendment_id = $pdo->lastInsertId();
+        
+        // Gestion de l'upload du fichier PDF d'amendement
+        if (isset($_FILES['amendment_pdf']) && $_FILES['amendment_pdf']['error'] === 0) {
+            $upload_dir = 'uploads/amendements/';
+            
+            // Créer le dossier s'il n'existe pas
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+
+            $filename = $_FILES['amendment_pdf']['name'];
+            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            $file_size = $_FILES['amendment_pdf']['size'];
+            $allowed_extensions = ['pdf'];
+            $max_file_size = 10 * 1024 * 1024; // 10MB
+
+            if (in_array($extension, $allowed_extensions) && $file_size <= $max_file_size) {
+                // Nom unique avec timestamp
+                $unique_filename = 'a_' . $amendment_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
+                $target_file = $upload_dir . $unique_filename;
+
+                if (move_uploaded_file($_FILES['amendment_pdf']['tmp_name'], $target_file)) {
+                    // Enregistrer dans la table document
+                    $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, ?)";
+                    $stmtDoc = $pdo->prepare($sqlDoc);
+                    $docCode = 'AMD_' . $amendment_id . '_' . time();
+                    $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 2]); // Type 2 = AMENDEMENT
+                    
+                    // Enregistrer la liaison entre document et amendement
+                    $sqlLink = "INSERT INTO document_amendement (documentID, amendementID) VALUES (?, ?)";
+                    $stmtLink = $pdo->prepare($sqlLink);
+                    $stmtLink->execute([$pdo->lastInsertId(), $amendment_id]);
+                }
+            }
+        }
+        
+        // Les amendments ne modifient pas les valeurs originales de la garantie
+        // Les totaux sont calculés en affichage
+        
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => "Erreur : " . $e->getMessage()]);
+    }
+    exit;
+    break;
+
+case 'delete_amendement':
+    header('Content-Type: application/json');
+    $id = intval($_POST['id'] ?? 0);
+    
+    if ($id > 0) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM amendement WHERE id = ?");
+            if ($stmt->execute([$id])) {
+                echo json_encode(['ok' => true]);
+            } else {
+                echo json_encode(['ok' => false, 'message' => 'Échec de la suppression']);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+        }
+    } else {
+        echo json_encode(['ok' => false, 'message' => 'ID invalide']);
+    }
+    exit;
+    break;
 
     //                                          AUTHENTIFICATION
     case 'authentification':

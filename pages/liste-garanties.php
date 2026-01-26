@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// Requête optimisée avec toutes les jointures nécessaires
+// Requête optimisée avec toutes les jointures nécessaires et calcul des montants
 $query = "SELECT 
     g.id,
     g.num_garantie,
@@ -14,13 +14,17 @@ $query = "SELECT
     d.code as devise_code,
     st.libelle as statut_libelle,
     ao.num_app_offre,
-    DATEDIFF(g.date_expiration, CURDATE()) as jours_restants
+    DATEDIFF(g.date_expiration, CURDATE()) as jours_restants,
+    COALESCE(SUM(CASE WHEN a_inner.type_amendementID IN (SELECT id FROM type_amendement WHERE code IN ('MONTANT', 'MIXTE')) 
+                      THEN a_inner.nouveau_montant ELSE 0 END), 0) as total_amendments_montant
 FROM garantie_soumission g
 LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id
 LEFT JOIN agence a ON g.agenceID = a.id
 LEFT JOIN devise d ON g.deviseID = d.id
 LEFT JOIN statut st ON g.statutID = st.id
 LEFT JOIN appel_offre ao ON g.appel_offreID = ao.id
+LEFT JOIN amendement a_inner ON g.id = a_inner.garantie_soumissionID
+GROUP BY g.id, g.num_garantie, g.montant_garantie, g.date_emission, g.date_expiration, s.nom_entreprise, a.nom, d.code, st.libelle, ao.num_app_offre
 ORDER BY g.date_emission DESC";
 
 $result = $pdo->query($query);
@@ -44,7 +48,7 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
         <?php if (count($garanties) > 0): ?>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+<thead class="table-light">
                     <tr>
                         <th class="ps-3">N° Garantie</th>
                         <th>Soumissionnaire</th>
@@ -71,9 +75,19 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
                             <span class="badge <?php echo $badgeClass; ?>"><?php echo $dateExp; ?></span>
                             <div class="small text-muted"><?php echo $row['jours_restants']; ?> jours restants</div>
                         </td>
-                        <td class="text-end fw-bold">
-                            <?php echo number_format($row['montant_garantie'], 2, ',', ' '); ?> 
-                            <small><?php echo $row['devise_code']; ?></small>
+                        <td class="text-end">
+                            <?php 
+                            $montant_total = $row['montant_garantie'] + $row['total_amendments_montant'];
+                            ?>
+                            <div class="fw-bold text-success">
+                                <?php echo number_format($montant_total, 2, ',', ' '); ?> 
+                                <small><?php echo $row['devise_code']; ?></small>
+                            </div>
+                            <?php if ($row['total_amendments_montant'] > 0): ?>
+                                <small class="text-muted d-block">
+                                    (Original: <?php echo number_format($row['montant_garantie'], 2, ',', ' '); ?>)
+                                </small>
+                            <?php endif; ?>
                         </td>
                         <td class="text-center">
                             <div class="btn-group">
@@ -105,47 +119,49 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <script>
-document.querySelectorAll('.delete-garantie').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const id = this.dataset.id;
-        const num = this.dataset.num;
+document.addEventListener('DOMContentLoaded', function() {
+    // Suppression garantie
+    document.querySelectorAll('.delete-garantie').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const num = this.dataset.num;
 
-        Swal.fire({
-            title: 'Êtes-vous sûr ?',
-            text: `Supprimer la garantie n° : ${num}`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#486a70',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_garantie');
-                fd.append('id', id);
+            Swal.fire({
+                title: 'Êtes-vous sûr ?',
+                text: `Supprimer la garantie n° : ${num}`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#486a70',
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const fd = new FormData();
+                    fd.append('form_type', 'delete_garantie');
+                    fd.append('id', id);
 
-                try {
-                    const res = await fetch('process.php', { method: 'POST', body: fd });
-                    const data = await res.json();
-                    
-                    if (data.ok) {
-                        // BARRE DE PROGRESSION ACTIVÉE
-                        await Swal.fire({ 
-                            icon: 'success', 
-                            title: 'Supprimée !', 
-                            timer: 1500, 
-                            showConfirmButton: false,
-                            timerProgressBar: true 
-                        });
-                        location.reload();
-                    } else {
-                        Swal.fire('Erreur', data.message || 'La suppression a échoué', 'error');
+                    try {
+                        const res = await fetch('process.php', { method: 'POST', body: fd });
+                        const data = await res.json();
+                        
+                        if (data.ok) {
+                            await Swal.fire({ 
+                                icon: 'success', 
+                                title: 'Supprimée !', 
+                                timer: 1500, 
+                                showConfirmButton: false,
+                                timerProgressBar: true 
+                            });
+                            location.reload();
+                        } else {
+                            Swal.fire('Erreur', data.message || 'La suppression a échoué', 'error');
+                        }
+                    } catch (err) {
+                        Swal.fire('Erreur', 'Lien avec le serveur rompu', 'error');
                     }
-                } catch (err) {
-                    Swal.fire('Erreur', 'Lien avec le serveur rompu', 'error');
                 }
-            }
+            });
         });
     });
 });

@@ -1,4 +1,4 @@
- <?php
+<?php
 
 require_once dirname(__DIR__) . '/database.php';
 
@@ -39,7 +39,7 @@ if (isset($_GET['edit'])) {
 
 //Liste des garanties pour le tableau
 
-$query = "SELECT g.*, s.nom_entreprise, d.code as devise_code, st.libelle as statut_nom
+$query = "SELECT g.*, s.nom_entreprise, d.code as devise_code, d.Id as devise_id, st.libelle as statut_nom
 
           FROM garantie_soumission g
 
@@ -53,6 +53,9 @@ $query = "SELECT g.*, s.nom_entreprise, d.code as devise_code, st.libelle as sta
 
 $recent_garanties = $pdo->query($query)->fetchAll();
 
+// Types d'amendement pour le modal
+$types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+
 ?>
 
 
@@ -61,6 +64,10 @@ $recent_garanties = $pdo->query($query)->fetchAll();
     <div class="d-flex justify-content-between align-items-center">
 
         <h2><i class="fas fa-shield-alt me-2"></i>Gestion des Garanties</h2>
+
+        <button type="button" id="btnAjouterAmendement" class="btn btn-warning text-white" style="display: none;">
+            <i class="fas fa-file-signature me-2"></i>Ajouter Amendement
+        </button>
 
     </div>
 
@@ -277,8 +284,26 @@ $recent_garanties = $pdo->query($query)->fetchAll();
 
                 </div>
 
-            </div>
+                </div>
 
+            <!-- Section Document PDF -->
+            <div class="card shadow-sm mb-4 border-0">
+                <div class="card-header text-white" style="background-color: #e74c3c;">
+                    <i class="fas fa-file-pdf me-2"></i>Document PDF
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Ajouter un document PDF (Optionnel)</label>
+                            <input type="file" name="pdf_files" id="pdfFilesInput" class="form-control" accept=".pdf">
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-info-circle me-1"></i>Format PDF uniquement. Maximum 10 MB.
+                            </small>
+                        </div>
+                        <div class="col-md-12" id="pdfPreview"></div>
+                    </div>
+                </div>
+            </div>
 
             <div class="mt-4">
 
@@ -311,7 +336,7 @@ $recent_garanties = $pdo->query($query)->fetchAll();
 
             <table class="table table-hover align-middle mb-0">
 
-                <thead class="table-light">
+<thead class="table-light">
 
                     <tr>
 
@@ -343,7 +368,7 @@ $recent_garanties = $pdo->query($query)->fetchAll();
 
                         <td class="text-center"><span class="badge bg-light text-dark border"><?= $g['statut_nom'] ?></span></td>
 
-                        <td class="text-center">
+<td class="text-center">
 
                             <div class="btn-group">
 
@@ -408,6 +433,9 @@ numInput.addEventListener('blur', async function() {
 });
 
 
+// Variable globale pour stocker la garantie en cours d'édition
+let currentEditingGarantie = null;
+
 //Mode Edition
 
 function activateEditMode(g) {
@@ -439,6 +467,15 @@ function activateEditMode(g) {
     document.getElementById('statutSelect').value = g.statutID;
 
    
+    // Stocker la garantie et afficher le bouton amendement
+    currentEditingGarantie = {
+        id: g.id,
+        numGarantie: g.num_garantie,
+        montant: g.montant_garantie,
+        deviseCode: g.devise_code,
+        dateExpiration: g.date_expiration
+    };
+    document.getElementById('btnAjouterAmendement').style.display = 'inline-block';
 
     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour la garantie';
 
@@ -565,6 +602,34 @@ montantInput.addEventListener('input', function() { this.value = this.value.repl
 
 numInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
 
+// PDF Preview Handler
+const pdfFilesInput = document.getElementById('pdfFilesInput');
+const pdfPreview = document.getElementById('pdfPreview');
+
+pdfFilesInput.addEventListener('change', function() {
+    pdfPreview.innerHTML = '';
+    
+    if (this.files.length === 0) {
+        return;
+    }
+    
+    const file = this.files[0];
+    const previewDiv = document.createElement('div');
+    
+    if (file.type !== 'application/pdf') {
+        previewDiv.className = 'alert alert-danger';
+        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
+    } else if (file.size > 10 * 1024 * 1024) {
+        previewDiv.className = 'alert alert-danger';
+        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Fichier trop volumineux (Max 10 MB)`;
+    } else {
+        previewDiv.className = 'alert alert-success';
+        previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
+    }
+    
+    pdfPreview.appendChild(previewDiv);
+});
+
 
 // banque/agence
 document.addEventListener('DOMContentLoaded', function() {
@@ -602,6 +667,216 @@ document.addEventListener('DOMContentLoaded', function() {
             agenceOptions[0].textContent = "Sélectionner une agence...";
         }
     });
+
+    // Ouvrir le modal Amendement (utilise currentEditingGarantie défini dans activateEditMode)
+    const btnAmendement = document.getElementById('btnAjouterAmendement');
+    
+    if (btnAmendement) {
+        btnAmendement.addEventListener('click', function() {
+            if (!currentEditingGarantie) {
+                Swal.fire('Attention', 'Veuillez d\'abord sélectionner une garantie à modifier.', 'warning');
+                return;
+            }
+            
+            // Remplir les infos du modal
+            document.getElementById('amendementGarantieId').value = currentEditingGarantie.id;
+            document.getElementById('amendementGarantieInfo').textContent = 
+                `Garantie n° ${currentEditingGarantie.numGarantie} - ${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
+            document.getElementById('montantActuel').textContent = 
+                `${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
+            document.getElementById('dateExpirationActuelle').textContent = 
+                new Date(currentEditingGarantie.dateExpiration).toLocaleDateString('fr-FR');
+            
+            // Reset form
+            document.getElementById('amendementForm').reset();
+            document.getElementById('amendementGarantieId').value = currentEditingGarantie.id;
+            toggleAmendementFields();
+            
+            // Ouvrir le modal
+            const modal = new bootstrap.Modal(document.getElementById('amendementModal'));
+            modal.show();
+        });
+    }
+
+    // Gestion dynamique des champs selon le type d'amendement
+    function toggleAmendementFields() {
+        const typeSelect = document.getElementById('typeAmendementSelect');
+        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+        const code = selectedOption ? selectedOption.dataset.code : '';
+        
+        const montantGroup = document.getElementById('nouveauMontantGroup');
+        const dateGroup = document.getElementById('nouvelleDateGroup');
+        
+        montantGroup.style.display = 'none';
+        dateGroup.style.display = 'none';
+        
+        if (code === 'MONTANT') {
+            montantGroup.style.display = 'block';
+        } else if (code === 'DATE') {
+            dateGroup.style.display = 'block';
+        } else if (code === 'MIXTE') {
+            montantGroup.style.display = 'block';
+            dateGroup.style.display = 'block';
+        }
+    }
+
+    document.getElementById('typeAmendementSelect').addEventListener('change', toggleAmendementFields);
+
+    // PDF Preview Handler pour amendement
+    const amendmentPdfInput = document.getElementById('amendmentPdfInput');
+    const amendmentPdfPreview = document.getElementById('amendmentPdfPreview');
+    
+    amendmentPdfInput.addEventListener('change', function() {
+        amendmentPdfPreview.innerHTML = '';
+        
+        if (this.files.length === 0) {
+            return;
+        }
+        
+        const file = this.files[0];
+        const previewDiv = document.createElement('div');
+        
+        if (file.type !== 'application/pdf') {
+            previewDiv.className = 'alert alert-danger';
+            previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
+        } else {
+            previewDiv.className = 'alert alert-success';
+            previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
+        }
+        
+        amendmentPdfPreview.appendChild(previewDiv);
+    });
+
+    // Soumission du formulaire amendement
+    document.getElementById('amendementForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        
+        const fd = new FormData(this);
+        fd.append('form_type', 'amendement');
+        
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: fd });
+            const data = await res.json();
+            
+            if (data.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('amendementModal')).hide();
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'Amendement enregistré',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    timerProgressBar: true
+                });
+                location.reload();
+            } else if (data.errors) {
+                for (const [key, msg] of Object.entries(data.errors)) {
+                    const input = this.querySelector(`[name="${key}"]`);
+                    if (input) {
+                        input.classList.add('is-invalid');
+                        const feedback = input.nextElementSibling;
+                        if (feedback && feedback.classList.contains('invalid-feedback')) {
+                            feedback.textContent = msg;
+                        }
+                    }
+                }
+                Swal.fire('Erreur', 'Veuillez corriger les champs en rouge.', 'error');
+            } else {
+                Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
+            }
+        } catch (err) {
+            Swal.fire('Erreur', 'Lien avec le serveur rompu', 'error');
+        }
+    });
 });
 
-</script> 
+</script>
+
+<!-- Modal Amendement -->
+<div class="modal fade" id="amendementModal" tabindex="-1" aria-labelledby="amendementModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background-color: #e67e22;">
+                <h5 class="modal-title" id="amendementModalLabel">
+                    <i class="fas fa-file-signature me-2"></i>Nouvel Amendement
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="amendementForm">
+                <div class="modal-body">
+                    <input type="hidden" name="garantie_soumissionID" id="amendementGarantieId">
+                    
+                    <!-- Info Garantie sélectionnée -->
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong id="amendementGarantieInfo"></strong>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <!-- Numéro d'amendement -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Numéro d'Amendement</label>
+                            <input type="number" name="num_amendement" class="form-control" 
+                                   placeholder="Numéro unique" min="1" required>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        
+                        <!-- Date d'amendement -->
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Date d'Amendement</label>
+                            <input type="date" name="date_amendement" class="form-control" required>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        
+                        <!-- Type d'amendement -->
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Type d'Amendement</label>
+                            <select name="type_amendementID" id="typeAmendementSelect" class="form-select" required>
+                                <option value="">Sélectionner le type...</option>
+                                <?php foreach ($types_amendement as $type): ?>
+                                    <option value="<?php echo $type['id']; ?>" data-code="<?php echo $type['code']; ?>">
+                                        <?php echo htmlspecialchars($type['libelle']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        
+                        <!-- Nouveau Montant (conditionnel) -->
+                        <div class="col-md-6" id="nouveauMontantGroup" style="display: none;">
+                            <label class="form-label fw-bold">Nouveau Montant</label>
+                            <input type="text" name="nouveau_montant" class="form-control" placeholder="0.00">
+                            <small class="text-muted">Montant actuel : <span id="montantActuel"></span></small>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        
+                        <!-- Nouvelle Date d'Expiration (conditionnel) -->
+                        <div class="col-md-6" id="nouvelleDateGroup" style="display: none;">
+                            <label class="form-label fw-bold">Nouvelle Date d'Expiration</label>
+                            <input type="date" name="nouvelle_date_expiration" class="form-control">
+                            <small class="text-muted">Date actuelle : <span id="dateExpirationActuelle"></span></small>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        
+                        <!-- Document PDF d'Amendement -->
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Document PDF d'Amendement (Optionnel)</label>
+                            <input type="file" name="amendment_pdf" id="amendmentPdfInput" class="form-control" accept=".pdf">
+                            <small class="text-muted d-block mt-2">
+                                <i class="fas fa-info-circle me-1"></i>Format PDF uniquement
+                            </small>
+                        </div>
+                        <div class="col-md-12" id="amendmentPdfPreview"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-warning text-white">
+                        <i class="fas fa-save me-2"></i>Enregistrer l'Amendement
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
