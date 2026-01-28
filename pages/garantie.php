@@ -359,53 +359,52 @@ numInput.addEventListener('blur', async function() {
 // Variable globale pour stocker la garantie en cours d'édition
 let currentEditingGarantie = null;
 
-//Mode Edition
 
+// Mode Edition
 function activateEditMode(g) {
-
     document.getElementById('cardHeaderTitle').textContent = "Modifier la Garantie n° " + g.num_garantie;
-
     document.getElementById('formType').value = 'update_garantie';
-
     document.getElementById('garantieId').value = g.id;
-
     document.getElementById('numGarantieInput').value = g.num_garantie;
-
     document.getElementById('montantInput').value = g.montant_garantie;
-
     document.getElementById('dateEInput').value = g.date_emission;
-
     document.getElementById('dateXInput').value = g.date_expiration;
-
     document.getElementById('fournisseurSelect').value = g.soumissionnaireID;
-
     document.getElementById('deviseSelect').value = g.deviseID;
-
     document.getElementById('aoSelect').value = g.appel_offreID;
-
-    document.getElementById('agenceSelect').value = g.agenceID;
-
     document.getElementById('structureSelect').value = g.structureID;
-
     document.getElementById('statutSelect').value = g.statutID;
 
-   
-    // Stocker la garantie et afficher le bouton amendement
+    // --- LOGIQUE BANQUE / AGENCE ---
+    const agenceSelect = document.getElementById('agenceSelect');
+    const banqueSelect = document.getElementById('banqueSelect');
+    
+    // 1. Trouver l'option de l'agence pour récupérer son ID banque
+    const agenceOption = agenceSelect.querySelector(`option[value="${g.agenceID}"]`);
+    if (agenceOption) {
+        const banqueId = agenceOption.getAttribute('data-banque');
+        banqueSelect.value = banqueId; // Sélectionne la banque
+        
+        // 2. Déclencher manuellement l'affichage des agences de cette banque
+        banqueSelect.dispatchEvent(new Event('change')); 
+        
+        // 3. Sélectionner l'agence finale
+        agenceSelect.value = g.agenceID;
+    }
+
+    // --- LOGIQUE BOUTON AMENDEMENT ---
     currentEditingGarantie = {
         id: g.id,
         numGarantie: g.num_garantie,
         montant: g.montant_garantie,
-        deviseCode: g.devise_code,
+        deviseCode: g.devise_code || '', 
         dateExpiration: g.date_expiration
     };
     document.getElementById('btnAjouterAmendement').style.display = 'inline-block';
 
     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour la garantie';
-
     window.scrollTo({ top: 0, behavior: 'smooth' });
-
 }
-
 
 window.addEventListener('DOMContentLoaded', () => {
 

@@ -1,22 +1,21 @@
 <?php
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
-
 $currencies = $pdo->query("SELECT * FROM devise ORDER BY libelle ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
-        <h2 class="page-title"><i class="fas fa-money-bill me-2"></i>Liste des Devises</h2>
-        <a href="index.php?page=devise" class="btn ajouter shadow-sm">
+        <h2 class="page-title"><i class="fas fa-coins me-2"></i>Liste des Devises</h2>
+        <a href="index.php?page=devise" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
             <i class="fas fa-plus me-2"></i>Ajouter une Devise
         </a>
     </div>
 </div>
 
 <div class="card shadow-sm border-0">
-    <div class="card-header bg-white fw-bold">
-        <i class="fas fa-list me-2"></i>Toutes les Devises
+    <div class="card-header text-white fw-bold" style="background-color: #486a70;">
+        <i class="fas fa-list me-2"></i>Répertoire des Devises
     </div>
     <div class="card-body p-0">
         <?php if (!empty($currencies)): ?>
@@ -32,17 +31,14 @@ $currencies = $pdo->query("SELECT * FROM devise ORDER BY libelle ASC")->fetchAll
                 <tbody>
                     <?php foreach ($currencies as $c): ?>
                         <tr>
-                            <td class="ps-3"><strong><?= htmlspecialchars($c['libelle']); ?></strong></td>
+                            <td class="ps-3 fw-bold"><?= htmlspecialchars($c['libelle']); ?></td>
                             <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($c['code']); ?></span></td>
                             <td class="text-center">
-                                <div class="btn-group">
-                                    <button class="btn btn-sm ajouter text-white edit-devise" 
-                                            data-devise='<?= htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') ?>'>
+                                <div class="btn-group shadow-sm">
+                                    <a href="index.php?page=devise&edit=<?= $c['id'] ?>" class="btn btn-sm text-white" style="background-color: #486a70;">
                                         <i class="fas fa-pencil-alt"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger delete-devise" 
-                                            data-id="<?= $c['id']; ?>" 
-                                            data-libelle="<?= htmlspecialchars($c['libelle']); ?>">
+                                    </a>
+                                    <button class="btn btn-sm btn-danger delete-btn" data-id="<?= $c['id']; ?>" data-libelle="<?= htmlspecialchars($c['libelle']); ?>">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -53,27 +49,20 @@ $currencies = $pdo->query("SELECT * FROM devise ORDER BY libelle ASC")->fetchAll
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-4"><p class="text-muted mb-0">Aucune devise enregistrée.</p></div>
+        <div class="text-center py-5"><p class="text-muted mb-0">Aucune devise enregistrée.</p></div>
         <?php endif; ?>
     </div>
 </div>
 
 <script>
-document.querySelectorAll('.edit-devise').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const c = JSON.parse(this.dataset.devise);
-        window.location.href = 'index.php?page=devise&edit=' + c.id;
-    });
-});
-
-document.querySelectorAll('.delete-devise').forEach(btn => {
+document.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const id = this.dataset.id;
         const lib = this.dataset.libelle;
 
         Swal.fire({
-            title: 'Confirmer',
-            text: `Supprimer la devise "${lib}" ?`,
+            title: 'Supprimer ?',
+            text: `Voulez-vous supprimer la devise "${lib}" ?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -89,13 +78,12 @@ document.querySelectorAll('.delete-devise').forEach(btn => {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ 
-                            icon: 'success', title: 'Supprimé !', 
-                            timer: 1500, showConfirmButton: false, timerProgressBar: true 
-                        });
+                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
                         location.reload();
+                    } else {
+                        Swal.fire('Erreur', data.message, 'error');
                     }
-                } catch (err) { }
+                } catch (err) { console.error(err); }
             }
         });
     });

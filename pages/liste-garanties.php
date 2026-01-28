@@ -2,7 +2,7 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// Requête optimisée avec toutes les jointures nécessaires et calcul des montants
+// Requête intégrant la logique d'authentification EXACTEMENT comme l'amendement
 $query = "SELECT 
     g.id,
     g.num_garantie,
@@ -15,8 +15,11 @@ $query = "SELECT
     st.libelle as statut_libelle,
     ao.num_app_offre,
     DATEDIFF(g.date_expiration, CURDATE()) as jours_restants,
-    COALESCE(SUM(CASE WHEN a_inner.type_amendementID IN (SELECT id FROM type_amendement WHERE code IN ('MONTANT', 'MIXTE')) 
-                      THEN a_inner.nouveau_montant ELSE 0 END), 0) as total_amendments_montant
+    -- Calcul Amendements (existant)
+    COALESCE(SUM(DISTINCT CASE WHEN a_inner.type_amendementID IN (SELECT id FROM type_amendement WHERE code IN ('MONTANT', 'MIXTE')) 
+                      THEN a_inner.nouveau_montant ELSE 0 END), 0) as total_amendments_montant,
+    -- Calcul Authentifications (Nouveau - EXACTEMENT comme amendement)
+    COUNT(DISTINCT auth.id) as nb_auth
 FROM garantie_soumission g
 LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id
 LEFT JOIN agence a ON g.agenceID = a.id
@@ -24,6 +27,7 @@ LEFT JOIN devise d ON g.deviseID = d.id
 LEFT JOIN statut st ON g.statutID = st.id
 LEFT JOIN appel_offre ao ON g.appel_offreID = ao.id
 LEFT JOIN amendement a_inner ON g.id = a_inner.garantie_soumissionID
+LEFT JOIN authentification auth ON g.id = auth.garantie_soumissionID
 GROUP BY g.id, g.num_garantie, g.montant_garantie, g.date_emission, g.date_expiration, s.nom_entreprise, a.nom, d.code, st.libelle, ao.num_app_offre
 ORDER BY g.date_emission DESC";
 
@@ -48,7 +52,7 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
         <?php if (count($garanties) > 0): ?>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-<thead class="table-light">
+                <thead class="table-light">
                     <tr>
                         <th class="ps-3">N° Garantie</th>
                         <th>Soumissionnaire</th>
@@ -62,9 +66,13 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
                     <?php foreach ($garanties as $row): ?>
                     <tr>
                         <td class="ps-3">
-                            <span class="fw-bold text-dark"><?php echo htmlspecialchars($row['num_garantie']); ?></span><br>
-                            <small class="text-muted"><?php echo htmlspecialchars($row['agence_nom']); ?></small>
-                        </td>
+    <span class="fw-bold text-dark"><?php echo htmlspecialchars($row['num_garantie']); ?></span>
+    <?php if ($row['nb_auth'] > 0): ?>
+        <i class="fas fa-check-circle text-primary ms-1" title="Authentifiée"></i>
+    <?php endif; ?>
+    <br>
+    <small class="text-muted"><?php echo htmlspecialchars($row['agence_nom']); ?></small>
+</td>
                         <td><?php echo htmlspecialchars($row['nom_entreprise']); ?></td>
                         <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($row['num_app_offre'] ?? 'N/A'); ?></span></td>
                         <td>
@@ -76,9 +84,7 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
                             <div class="small text-muted"><?php echo $row['jours_restants']; ?> jours restants</div>
                         </td>
                         <td class="text-end">
-                            <?php 
-                            $montant_total = $row['montant_garantie'] + $row['total_amendments_montant'];
-                            ?>
+                            <?php $montant_total = $row['montant_garantie'] + $row['total_amendments_montant']; ?>
                             <div class="fw-bold text-success">
                                 <?php echo number_format($montant_total, 2, ',', ' '); ?> 
                                 <small><?php echo $row['devise_code']; ?></small>

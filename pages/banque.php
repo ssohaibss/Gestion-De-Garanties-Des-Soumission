@@ -16,7 +16,7 @@ if (isset($_GET['edit'])) {
 
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
-        <i class="fas fa-edit me-2"></i> 
+        <i class="fas <?= $edit_data ? 'fa-edit' : 'fa-plus-circle' ?> me-2"></i> 
         <span><?= $edit_data ? "Modifier la banque : " . htmlspecialchars($edit_data['nom_banque']) : "Ajouter une nouvelle banque" ?></span>
     </div>
     <div class="card-body">
@@ -26,18 +26,14 @@ if (isset($_GET['edit'])) {
             
             <div class="row">
                 <div class="col-md-4 mb-3">
-                    <label class="form-label fw-bold">
-                        Code Banque <span class="text-danger" <?= $edit_data ? 'style="display:none;"' : '' ?>>*</span>
-                    </label>
-                    <input type="text" class="form-control intel-input" name="code" id="banqueCode" 
+                    <label class="form-label fw-bold">Code Banque <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control intel-input text-uppercase" name="code" id="banqueCode" 
                            value="<?= $edit_data['code'] ?? '' ?>" required
                            data-pattern="^[A-Z]{3,5}$" 
-                           data-msg="3 à 5 lettres uniquement (pas de chiffres).">
+                           data-msg="3 à 5 lettres (ex: BEA).">
                     <div class="invalid-feedback"></div>
-                    <?php if ($edit_data): ?>
-                        <small class="text-muted d-block mt-1"><strong>Le code identifiant de la banque</strong></small>
-                    <?php endif; ?>
                 </div>
+
                 <div class="col-md-8 mb-3">
                     <label class="form-label fw-bold">Nom de la Banque <span class="text-danger">*</span></label>
                     <input type="text" class="form-control intel-input" name="nom_banque" id="banqueNom" 
@@ -48,57 +44,83 @@ if (isset($_GET['edit'])) {
                 </div>
             </div>
             
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn ajouter shadow-sm">
+            <div class="d-flex gap-2 mt-2">
+                <button type="submit" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
                     <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
-                    <?= $edit_data ? 'Mettre à jour la banque' : 'Enregistrer la banque' ?>
+                    <?= $edit_data ? 'Mettre à jour la banque' : 'Enregistrer' ?>
                 </button>
-                <a href="index.php?page=liste-banque" class="btn btn-secondary shadow-sm">Annuler / Retour</a>
+                <a href="index.php?page=liste-banque" class="btn btn-secondary shadow-sm">Annuler</a>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-document.querySelectorAll('.intel-input').forEach(input => {
-    input.addEventListener('input', function() {
-        // Règle spécifique : Code en Lettres MAJUSCULES uniquement (pas de chiffres)
-        if(this.id === 'banqueCode') {
-            this.value = this.value.replace(/[^a-zA-Z]/g, '').toUpperCase();
-        }
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Nettoyage en temps réel
+    document.getElementById('banqueCode').addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+    });
+
+    document.getElementById('banqueNom').addEventListener('input', function() {
+        let val = this.value.replace(/ {2,}/g, ' '); 
+        if (val.startsWith(' ')) val = val.trimStart();
+        this.value = val;
+    });
+
+    // 2. Validation Blur + Unicité (Coordonné avec unique_check.php)
+    document.querySelectorAll('.intel-input').forEach(input => {
+        input.addEventListener('blur', async function() {
+            const val = this.value.trim();
+            const idValue = document.getElementById('banqueId').value;
+            const fb = this.closest('.mb-3').querySelector('.invalid-feedback');
+            
+            this.classList.remove('is-invalid', 'is-valid');
+            if (val === "") return;
+
+            // Test Pattern
+            const pattern = new RegExp(this.dataset.pattern);
+            if (!pattern.test(val)) {
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = this.dataset.msg;
+                return;
+            }
+
+            // Vérification Unicité
+            try {
+                const res = await fetch(`pages/unique_check.php?type=banque&field=${this.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
+                const data = await res.json();
+                if (data.exists) {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = `Ce ${this.name === 'code' ? 'code' : 'nom'} est déjà utilisé.`;
+                } else {
+                    this.classList.add('is-valid');
+                }
+            } catch (e) { console.error("Erreur check:", e); }
+        });
+    });
+
+    // 3. Envoi du formulaire
+    document.getElementById('banqueForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
         
-        const pattern = new RegExp(this.dataset.pattern);
-        if (this.value !== "" && !pattern.test(this.value)) {
-            this.classList.add('is-invalid');
-            const feedback = this.closest('.mb-3').querySelector('.invalid-feedback');
-            if (feedback) feedback.textContent = this.dataset.msg;
+        // On déclenche le blur sur tous les champs pour être sûr avant de soumettre
+        this.querySelectorAll('.intel-input').forEach(i => i.dispatchEvent(new Event('blur')));
+
+        if (this.querySelectorAll('.is-invalid').length > 0) {
+            Swal.fire('Attention', 'Veuillez corriger les erreurs avant de continuer.', 'warning');
+            return;
+        }
+
+        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+        const data = await res.json();
+        
+        if (data.ok) {
+            await Swal.fire({ icon: 'success', title: 'Opération réussie', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+            window.location.href = 'index.php?page=liste-banque';
         } else {
-            this.classList.remove('is-invalid');
+            Swal.fire('Erreur', data.message || 'Une erreur est survenue', 'error');
         }
     });
-});
-
-document.getElementById('banqueForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (document.querySelectorAll('.is-invalid').length > 0) return;
-
-    const res = await fetch('process.php', { method: 'POST', body: new FormData(e.target) });
-    const data = await res.json();
-    if (data.ok) {
-        await Swal.fire({ 
-            icon: 'success', title: 'Succès', 
-            timer: 1500, showConfirmButton: false, timerProgressBar: true 
-        });
-        window.location.href = 'index.php?page=liste-banque';
-    } else if (data.errors) {
-        for (const [key, msg] of Object.entries(data.errors)) {
-            const input = e.target.querySelector(`[name="${key}"]`);
-            if (input) {
-                input.classList.add('is-invalid');
-                const feedback = input.closest('.mb-3').querySelector('.invalid-feedback');
-                if (feedback) feedback.textContent = msg;
-            }
-        }
-    }
 });
 </script>

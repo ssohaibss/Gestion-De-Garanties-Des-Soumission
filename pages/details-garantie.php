@@ -295,8 +295,7 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                     <i class="fas fa-clock me-2"></i>
                     <?php echo ($jours > 0) ? $jours . " jours restants" : "Expirée"; ?>
                 </div>
-                <p class="text-muted small">ID Statut actuel : <strong><?php echo $garantie['statutID']; ?></strong></p>
-            </div>
+                </div>
         </div>
     </div>
 </div>

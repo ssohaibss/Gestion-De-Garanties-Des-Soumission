@@ -2,7 +2,6 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// Récupération des agences avec jointure pour afficher le nom de la banque
 $query = "SELECT a.*, b.nom_banque, b.code as code_banque 
           FROM agence a 
           LEFT JOIN banque b ON a.banqueID = b.id 
@@ -13,15 +12,15 @@ $agencies = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
         <h2 class="page-title"><i class="fas fa-map-marked-alt me-2"></i>Liste des Agences</h2>
-        <a href="index.php?page=agence" class="btn ajouter shadow-sm text-white" style="background-color: #486a70;">
-            <i class="fas fa-plus"></i> Ajouter une Agence
+        <a href="index.php?page=agence" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
+            <i class="fas fa-plus me-2"></i>Ajouter une Agence
         </a>
     </div>
 </div>
 
 <div class="card shadow-sm border-0">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
-        <i class="fas fa-list me-2"></i>Toutes les Agences
+        <i class="fas fa-list me-2"></i>Répertoire des Agences
     </div>
     <div class="card-body p-0">
         <?php if (count($agencies) > 0): ?>
@@ -29,23 +28,21 @@ $agencies = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3" style="color: #333;">Code</th>
-                        <th style="color: #333;">Nom de l'Agence</th>
-                        <th style="color: #333;">Banque rattachée</th>
-                        <th style="color: #333;">Adresse</th>
-                        <th class="text-center" style="width: 120px; color: #333;">Actions</th>
+                        <th class="ps-3">Code</th>
+                        <th>Nom de l'Agence</th>
+                        <th>Banque rattachée</th>
+                        <th>Adresse</th>
+                        <th class="text-center" style="width: 120px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($agencies as $a): ?>
                         <tr>
-                            <td class="ps-3">
-                                <span class="badge bg-light text-dark border"><?= htmlspecialchars($a['code']) ?></span>
-                            </td>
+                            <td class="ps-3"><span class="badge bg-light text-dark border"><?= htmlspecialchars($a['code']) ?></span></td>
                             <td><strong><?= htmlspecialchars($a['nom']) ?></strong></td>
                             <td>
                                 <span class="text-muted"><?= htmlspecialchars($a['nom_banque'] ?? 'N/A') ?></span>
-                                <small class="badge bg-secondary ms-1"><?= htmlspecialchars($a['code_banque'] ?? '---') ?></small>
+                                <small class="badge bg-secondary ms-1 opacity-75"><?= htmlspecialchars($a['code_banque'] ?? '---') ?></small>
                             </td>
                             <td><small class="text-muted"><?= htmlspecialchars($a['adresse']) ?></small></td>
                             <td class="text-center">
@@ -53,9 +50,7 @@ $agencies = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
                                     <a href="index.php?page=agence&edit=<?= $a['id'] ?>" class="btn btn-sm text-white" style="background-color: #486a70;">
                                         <i class="fas fa-pencil-alt"></i>
                                     </a>
-                                    <button class="btn btn-sm btn-danger delete-agence" 
-                                            data-id="<?= $a['id'] ?>" 
-                                            data-nom="<?= htmlspecialchars($a['nom']) ?>">
+                                    <button class="btn btn-sm btn-danger delete-agence" data-id="<?= $a['id'] ?>" data-nom="<?= htmlspecialchars($a['nom']) ?>">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -66,9 +61,7 @@ $agencies = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-5">
-            <p class="text-muted">Aucune agence enregistrée dans le système.</p>
-        </div>
+        <div class="text-center py-5"><p class="text-muted">Aucune agence enregistrée.</p></div>
         <?php endif; ?>
     </div>
 </div>
@@ -94,26 +87,16 @@ document.querySelectorAll('.delete-agence').forEach(btn => {
                 const fd = new FormData();
                 fd.append('form_type', 'delete_agence');
                 fd.append('id', id);
-
                 try {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
-                    
                     if (data.ok) {
-                        await Swal.fire({ 
-                            icon: 'success', 
-                            title: 'Supprimé !', 
-                            timer: 1500, 
-                            showConfirmButton: false, 
-                            timerProgressBar: true 
-                        });
+                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                         location.reload();
                     } else {
-                        Swal.fire('Erreur', data.message || 'Suppression impossible', 'error');
+                        Swal.fire('Erreur', data.message, 'error');
                     }
-                } catch (err) {
-                    Swal.fire('Erreur', 'Lien avec le serveur rompu', 'error');
-                }
+                } catch (err) { Swal.fire('Erreur', 'Serveur injoignable', 'error'); }
             }
         });
     });

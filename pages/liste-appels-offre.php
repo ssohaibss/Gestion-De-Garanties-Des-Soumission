@@ -2,20 +2,12 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-$query = "SELECT 
-    ao.id,
-    ao.num_app_offre,
-    d.code as devise_code, -- On récupère le code (DZD, EUR, etc.)
-    COUNT(g.id) as nb_garanties,
-    SUM(g.montant_garantie) as montant_total
-FROM appel_offre ao
-LEFT JOIN devise d ON ao.deviseID = d.Id -- Jointure avec la table devise
-LEFT JOIN garantie_soumission g ON ao.id = g.appel_offreID
-GROUP BY ao.id
-ORDER BY ao.num_app_offre DESC";
+$query = "SELECT ao.id, ao.num_app_offre, COUNT(g.id) as nb_garanties
+          FROM appel_offre ao
+          LEFT JOIN garantie_soumission g ON ao.id = g.appel_offreID
+          GROUP BY ao.id ORDER BY ao.num_app_offre DESC";
 
-$result = $pdo->query($query);
-$appels_offre = $result->fetchAll(PDO::FETCH_ASSOC);
+$appels_offre = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="content-header">
@@ -28,36 +20,30 @@ $appels_offre = $result->fetchAll(PDO::FETCH_ASSOC);
 </div>
 
 <div class="card shadow-sm">
-    <div class="card-header">
-        <i class="fas fa-list me-2"></i>Tous les Appels d'Offre
-    </div>
+    <div class="card-header"><i class="fas fa-list me-2"></i>Tous les Appels d'Offre</div>
     <div class="card-body">
         <?php if (count($appels_offre) > 0): ?>
         <div class="table-responsive">
             <table class="table table-hover align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th style="width: 80px;">ID</th>
+                       
                         <th>Numéro d'Appel d'Offre</th>
                         <th class="text-center">Nombre de Garanties</th>
-                        <th class="text-end">Montant Total</th>
                         <th class="text-center" style="width: 150px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ($appels_offre as $ao): ?>
                         <tr>
-                            <td><span class="text-muted">#<?php echo $ao['id']; ?></span></td>
-                            <td><strong><?php echo htmlspecialchars($ao['num_app_offre']); ?></strong></td>
-                            <td class="text-center"><?php echo $ao['nb_garanties']; ?> dossier(s)</td>
-                            <td class="text-end fw-bold">
-    <?php echo $ao['montant_total'] ? number_format($ao['montant_total'], 2, ',', ' ') . ' ' . $ao['devise_code'] : '<span class="text-muted">0,00</span>'; ?>
-</td>
+                            
+                            <td><strong><?= htmlspecialchars($ao['num_app_offre']); ?></strong></td>
+                            <td class="text-center"><?= $ao['nb_garanties']; ?> dossier(s)</td>
                             <td class="text-center">
                                 <div class="btn-group">
-                                    <a href="index.php?page=details-appel-offre&id=<?php echo $ao['id']; ?>" class="btn btn-sm eye text-white" title="Voir les détails"><i class="fas fa-eye"></i></a>
-                                    <a href="index.php?page=appel-offre&edit=<?php echo $ao['id']; ?>" class="btn btn-sm edit text-white" title="Modifier"><i class="fas fa-pencil-alt"></i></a>
-                                    <button class="btn btn-sm btn-danger delete-ao" data-id="<?php echo $ao['id']; ?>" data-num="<?php echo htmlspecialchars($ao['num_app_offre']); ?>"><i class="fas fa-trash"></i></button>
+                                    <a href="index.php?page=details-appel-offre&id=<?= $ao['id']; ?>" class="btn btn-sm eye text-white" title="Voir les détails"><i class="fas fa-eye"></i></a>
+                                    <a href="index.php?page=appel-offre&edit=<?= $ao['id']; ?>" class="btn btn-sm edit text-white" title="Modifier"><i class="fas fa-pencil-alt"></i></a>
+                                    <button class="btn btn-sm btn-danger delete-ao" data-id="<?= $ao['id']; ?>" data-num="<?= htmlspecialchars($ao['num_app_offre']); ?>"><i class="fas fa-trash"></i></button>
                                 </div>
                             </td>
                         </tr>
@@ -66,7 +52,7 @@ $appels_offre = $result->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-4"><p class="text-muted">Aucun appel d'offre enregistré.</p></div>
+        <div class="text-center py-4 text-muted">Aucun appel d'offre enregistré.</div>
         <?php endif; ?>
     </div>
 </div>
@@ -95,16 +81,9 @@ document.querySelectorAll('.delete-ao').forEach(btn => {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-
-                        await Swal.fire({ 
-                            icon: 'success', 
-                            title: 'Supprimé !', 
-                            timer: 1500, 
-                            showConfirmButton: false,
-                            timerProgressBar: true 
-                        });
+                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                         location.reload();
-                    }
+                    } else { Swal.fire('Erreur', data.message, 'error'); }
                 } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }
             }
         });

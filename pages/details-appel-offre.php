@@ -4,8 +4,7 @@ $pdo = getDBConnection();
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// 1. Récupération des détails de l'Appel d'Offre
-$query = "SELECT ao.*, d.code as devise_code 
+$query = "SELECT ao.id, ao.num_app_offre, ao.date_emission, d.code as devise_code 
           FROM appel_offre ao 
           LEFT JOIN devise d ON ao.deviseID = d.Id 
           WHERE ao.id = ?";
@@ -17,7 +16,7 @@ if (!$ao) {
     die("<div class='alert alert-danger m-3'>Dossier introuvable.</div>");
 }
 
-// 2. Récupération des garanties avec le bon nom : nom_entreprise
+// 2. Récupération des garanties liées
 $stmtG = $pdo->prepare("SELECT g.*, s.nom_entreprise 
                         FROM garantie_soumission g 
                         LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id 
@@ -48,14 +47,7 @@ $garanties = $stmtG->fetchAll();
                         <th class="text-muted">Date d'émission :</th>
                         <td><?php echo date('d/m/Y', strtotime($ao['date_emission'])); ?></td>
                     </tr>
-                    <tr>
-                        <th class="text-muted">Montant estimé :</th>
-                        <td class="text-success fw-bold">
-                            <?php echo number_format($ao['montant'], 2, ',', ' '); ?> 
-                            <small class="text-muted"><?php echo $ao['devise_code']; ?></small>
-                        </td>
-                    </tr>
-                </table>
+                    </table>
             </div>
             <div class="card-footer bg-light d-flex gap-2">
                 <a href="index.php?page=appel-offre&edit=<?php echo $ao['id']; ?>" class="btn btn-primary ajouter">
@@ -87,7 +79,10 @@ $garanties = $stmtG->fetchAll();
                                 <tr>
                                     <td class="ps-3"><strong><?php echo htmlspecialchars($g['num_garantie']); ?></strong></td>
                                     <td><?php echo htmlspecialchars($g['nom_entreprise'] ?? 'Non assigné'); ?></td>
-                                    <td class="text-end fw-bold"><?php echo number_format($g['montant_garantie'], 2, ',', ' '); ?></td>
+                                    <td class="text-end fw-bold">
+                                        <?php echo number_format($g['montant_garantie'], 2, ',', ' '); ?>
+                                        <small class="text-muted"><?php echo $ao['devise_code']; ?></small>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -124,6 +119,7 @@ async function confirmDelete(id, numAo) {
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#d33',
+        cancelButtonColor: '#486a70', // Ta couleur de module
         confirmButtonText: 'Oui, supprimer',
         cancelButtonText: 'Annuler'
     });
@@ -137,8 +133,14 @@ async function confirmDelete(id, numAo) {
             const res = await fetch('process.php', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.ok) {
-                await Swal.fire({ title: 'Supprimé !', icon: 'success', timer: 1500, showConfirmButton: false, timerProgressBar: true });
-                window.location.href = 'index.php?page=liste-appel-offre';
+                await Swal.fire({ 
+                    title: 'Supprimé !', 
+                    icon: 'success', 
+                    timer: 1500, 
+                    showConfirmButton: false, 
+                    timerProgressBar: true // Ton progrès conservé
+                });
+                window.location.href = 'index.php?page=liste-appels-offre';
             } else {
                 Swal.fire('Erreur', data.message, 'error');
             }

@@ -2,238 +2,150 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
-// 1. Récupération des devises pour le select
-$devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
-
-// 2. Logique AUTO-EDIT : Si l'ID est présent dans l'URL, on récupère les infos
 $edit_data = null;
 if (isset($_GET['edit'])) {
-    $stmt = $pdo->prepare("SELECT ao.*, d.code as devise_code FROM appel_offre ao LEFT JOIN devise d ON ao.deviseID = d.Id WHERE ao.id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM appel_offre WHERE id = ?");
     $stmt->execute([$_GET['edit']]);
     $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-// 3. Récupération de la liste complète pour le tableau en bas
-$query = "SELECT ao.*, d.code as devise_code 
-          FROM appel_offre ao 
-          LEFT JOIN devise d ON ao.deviseID = d.Id 
-          ORDER BY ao.id DESC";
-$appels_offre = $pdo->query($query)->fetchAll();
+$devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
 ?>
 
 <div class="content-header mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-        <h2><i class="fas fa-file-invoice me-2"></i>Gestion des Appels d'Offres</h2>
-    </div>
+    <h2><i class="fas fa-file-invoice me-2"></i>Gestion des Appels d'Offres</h2>
 </div>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-header text-white" style="background-color: #486a70;">
-        <i class="fas fa-user-edit me-2"></i><span id="cardHeaderTitle">Nouvel Appel d'Offre</span>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header text-white fw-bold" style="background-color: #486a70;">
+        <i class="fas <?= $edit_data ? 'fa-edit' : 'fa-plus-circle' ?> me-2"></i> 
+        <span><?= $edit_data ? "Modifier l'appel d'offre" : "Nouvel appel d'offre" ?></span>
     </div>
     <div class="card-body">
-        <form id="appelOffreForm" novalidate>
-            <input type="hidden" name="id" id="aoId">
-            <input type="hidden" name="form_type" id="formType" value="appel_offre">
-
+        <form id="aoForm" novalidate>
+            <input type="hidden" name="form_type" value="<?= $edit_data ? 'update_appel_offre' : 'appel_offre' ?>">
+            <input type="hidden" name="id" id="aoId" value="<?= $edit_data['id'] ?? '' ?>">
+            
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Numéro d'Appel d'Offre</label>
-                    <input type="text" name="numero_ao" id="numeroAoInput" class="form-control" placeholder="Ex: AO2025001" required>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Numéro d'Appel d'Offre <span class="text-danger">*</span></label>
+                    <input type="text" name="numero_ao" id="numAOInput" class="form-control text-uppercase intel-input" 
+                           value="<?= $edit_data['num_app_offre'] ?? '' ?>" required>
                     <div class="invalid-feedback"></div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Date d'Émission</label>
-                    <input type="date" name="date_emission" id="dateEmissionInput" class="form-control" required>
+                
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Date d'Émission <span class="text-danger">*</span></label>
+                    <input type="date" name="date_emission" id="dateInput" class="form-control intel-input" 
+                           value="<?= $edit_data['date_emission'] ?? '' ?>" required>
                     <div class="invalid-feedback"></div>
                 </div>
 
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Montant estimé</label>
-                    <input type="text" name="montant" id="montantInput" class="form-control" placeholder="0.00">
-                    <div class="invalid-feedback"></div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Devise</label>
-                    <select name="deviseID" id="deviseIDSelect" class="form-select">
-                        <option value="">Sélectionner</option>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Devise du dossier <span class="text-danger">*</span></label>
+                    <select class="form-select intel-input" name="deviseID" id="deviseSelect" required>
+                        <option value="">Sélectionner une devise...</option>
                         <?php foreach ($devises as $d): ?>
-                            <option value="<?php echo $d['Id']; ?>"><?php echo $d['code']; ?></option>
+                            <option value="<?= $d['Id'] ?>" <?= (isset($edit_data['deviseID']) && $edit_data['deviseID'] == $d['Id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($d['code']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="invalid-feedback"></div>
+                    <div class="invalid-feedback">Veuillez choisir une devise.</div>
                 </div>
             </div>
-
-            <div class="mt-2">
-                <button type="submit" id="submitBtn" class="btn ajouter">
-                    <i class="fas fa-save me-2"></i>Enregistrer le dossier
+            
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" id="btnSubmit" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
+                    <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
+                    <?= $edit_data ? 'Mettre à jour' : 'Enregistrer' ?>
                 </button>
+                <a href="index.php?page=liste-appels-offre" class="btn btn-secondary shadow-sm">Annuler</a>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card shadow-sm">
-    <div class="card-header bg-white fw-bold">
-        <i class="fas fa-list me-2"></i>Liste des dossiers récents
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-3" style="width: 80px;">ID</th>
-                        <th>Numéro Appel d'Offre</th>
-                        <th>Date</th>
-                        <th class="text-end">Montant</th>
-                        <th class="text-center" style="width: 120px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($appels_offre as $ao): ?>
-                    <tr>
-                        <td class="ps-3 text-muted">#<?php echo $ao['id']; ?></td>
-                        <td><strong><?php echo htmlspecialchars($ao['num_app_offre']); ?></strong></td>
-                        <td><?php echo date('d/m/Y', strtotime($ao['date_emission'])); ?></td>
-                        <td class="text-end fw-bold">
-                            <?php echo number_format($ao['montant'], 2, ',', ' '); ?> <small><?php echo $ao['devise_code']; ?></small>
-                        </td>
-                        <td class="text-center">
-                            <div class="btn-group">
-                                <button class="btn btn-sm edit text-white edit-ao" data-ao='<?php echo json_encode($ao, JSON_HEX_APOS); ?>' title="Modifier">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger delete-ao" data-id="<?php echo $ao['id']; ?>" title="Supprimer">
-            
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
 <script>
-const aoForm = document.getElementById('appelOffreForm');
-const submitBtn = document.getElementById('submitBtn');
-const cardHeaderTitle = document.getElementById('cardHeaderTitle');
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('aoForm');
+    const numInput = document.getElementById('numAOInput');
+    const aoId = document.getElementById('aoId').value;
 
-// --- FONCTION POUR ACTIVER LE MODE ÉDITION ---
-function activateEditMode(ao) {
-    if(!ao) return;
-    
-    cardHeaderTitle.textContent = `Modifier l'appel d'offre : ${ao.num_app_offre}`;
-    
-    document.getElementById('formType').value = 'update_appel_offre';
-    document.getElementById('aoId').value = ao.id;
-    document.getElementById('numeroAoInput').value = ao.num_app_offre;
-    document.getElementById('dateEmissionInput').value = ao.date_emission;
-    document.getElementById('montantInput').value = ao.montant;
-    document.getElementById('deviseIDSelect').value = ao.deviseID;
-    
-    submitBtn.innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour le dossier';
-    
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Initialisation au chargement
-window.addEventListener('DOMContentLoaded', () => {
-    <?php if ($edit_data): ?>
-        const dataFromUrl = <?php echo json_encode($edit_data); ?>;
-        activateEditMode(dataFromUrl);
-    <?php endif; ?>
-});
-
-// Envoi AJAX Formulaire (Ajout ou Modification)
-aoForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    aoForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-    
-    try {
-        const res = await fetch('process.php', { method: 'POST', body: new FormData(aoForm) });
-        const data = await res.json();
-        
-        if (data.ok) {
-            await Swal.fire({ 
-                icon: 'success', 
-                title: 'Opération réussie', 
-                timer: 1500, 
-                showConfirmButton: false, 
-                timerProgressBar: true
-            });
-            window.location.href = 'index.php?page=appel-offre';
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = aoForm.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    const feedback = input.nextElementSibling;
-                    if (feedback && feedback.classList.contains('invalid-feedback')) feedback.textContent = msg;
-                }
-            }
-        }
-    } catch (err) { Swal.fire('Erreur', 'Lien rompu avec le serveur', 'error'); }
-});
-
-// Clic sur bouton modifier du tableau
-document.querySelectorAll('.edit-ao').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const ao = JSON.parse(this.dataset.ao);
-        activateEditMode(ao);
+    // 1. Nettoyage en temps réel (pas d'espaces)
+    numInput.addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/\-]/g, '');
     });
-});
 
-// Suppression AJAX
-document.querySelectorAll('.delete-ao').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const id = this.dataset.id;
-        const numAo = this.closest('tr').querySelector('td strong').textContent;
+    // 2. Validation au BLUR (quand on quitte le champ)
+    document.querySelectorAll('.intel-input').forEach(input => {
+        input.addEventListener('blur', async function() {
+            const fieldName = this.name;
+            const value = this.value.trim();
+            const feedback = this.closest('.mb-3, .col-md-4').querySelector('.invalid-feedback');
 
-        Swal.fire({
-            title: 'Êtes-vous sûr ?',
-            text: `Supprimer l'appel d'offre n° ${numAo} ?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#486a70',
-            confirmButtonText: 'Oui, supprimer !',
-            cancelButtonText: 'Annuler'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_appel_offre');
-                fd.append('id', id);
+            this.classList.remove('is-invalid', 'is-valid');
+            if (value === "") return;
 
+            // Règle de longueur minimum pour le numéro
+            if (fieldName === 'numero_ao') {
+                if (value.length < 3) {
+                    this.classList.add('is-invalid');
+                    if (feedback) feedback.textContent = "Le numéro est trop court (min. 3 caract.).";
+                    return;
+                }
+                
+                // Vérification d'unicité via AJAX
                 try {
-                    const res = await fetch('process.php', { method: 'POST', body: fd });
+                    const res = await fetch(`pages/unique_check.php?type=appel_offre&field=numero_ao&value=${encodeURIComponent(value)}&id=${aoId}`);
                     const data = await res.json();
-                    
-                    if (data.ok) {
-                        await Swal.fire({ 
-                            title: 'Supprimé !', 
-                            icon: 'success', 
-                            timer: 1500, 
-                            showConfirmButton: false, 
-                            timerProgressBar: true 
-                        });
-                        location.reload();
+                    if (data.exists) {
+                        this.classList.add('is-invalid');
+                        if (feedback) feedback.textContent = "Ce numéro de dossier existe déjà.";
+                    } else {
+                        this.classList.add('is-valid');
                     }
-                } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }
+                } catch (e) { console.error("Erreur unicité:", e); }
+            } else {
+                this.classList.add('is-valid');
             }
         });
     });
-});
 
-// Nettoyage des inputs (Majuscules et Chiffres uniquement)
-document.getElementById('numeroAoInput').addEventListener('input', function() {
-    this.value = this.value.toUpperCase().replace(/[^A-Z0-9\/ \-]/g, '');
-});
-document.getElementById('montantInput').addEventListener('input', function() {
-    this.value = this.value.replace(/[^0-9.]/g, '');
+    // 3. Soumission du formulaire
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Reset des styles d'erreur
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const data = await res.json();
+
+            if (data.ok) {
+                await Swal.fire({ 
+                    icon: 'success', 
+                    title: 'Dossier enregistré !', 
+                    timer: 1500, 
+                    showConfirmButton: false,
+                    timerProgressBar: true // Ton progrès conservé ici
+                });
+                window.location.href = 'index.php?page=liste-appels-offre';
+            } else if (data.errors) {
+                // Affichage des erreurs retournées par process.php (ex: date 0001)
+                Object.entries(data.errors).forEach(([field, msg]) => {
+                    const inp = form.querySelector(`[name="${field}"]`);
+                    if (inp) {
+                        inp.classList.add('is-invalid');
+                        const fb = inp.closest('.mb-3, .col-md-4').querySelector('.invalid-feedback');
+                        if (fb) fb.textContent = msg;
+                    }
+                });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Erreur', text: 'Connexion serveur impossible.' });
+        }
+    });
 });
 </script>

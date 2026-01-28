@@ -19,7 +19,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
         <i class="fas fa-user-edit me-2"></i> 
-        <span id="formTitle"><?= $edit_data ? "Modifier : " . htmlspecialchars($edit_data['username']) : "Nouveau compte utilisateur" ?></span>
+        <span><?= $edit_data ? "Modifier : " . htmlspecialchars($edit_data['username']) : "Nouveau compte utilisateur" ?></span>
     </div>
     <div class="card-body">
         <form id="userForm" novalidate>
@@ -29,7 +29,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label class="form-label fw-bold">Nom <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control intel-input" name="nom" id="nomInput" 
+                    <input type="text" class="form-control intel-input text-uppercase" name="nom" id="nomInput" 
                            value="<?= $edit_data['nom'] ?? '' ?>" required
                            data-pattern="^[a-zA-ZÀ-ÿ\s\-]{3,}$" data-msg="Lettres uniquement (min. 3).">
                     <div class="invalid-feedback"></div>
@@ -66,15 +66,15 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
 
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">Login <span class="text-danger">*</span></label>
+                    <label class="form-label fw-bold">Login (Nom d'utilisateur) <span class="text-danger">*</span></label>
                     <input type="text" class="form-control intel-input" name="username" id="usernameInput"
                            value="<?= $edit_data['username'] ?? '' ?>" required
-                           data-pattern="^[a-z0-9._\-]{4,}$" data-msg="Min. 4 car. (minuscules/chiffres).">
+                           data-pattern="^[a-zA-Z0-9._\-]{4,}$" data-msg="Min. 4 car. (lettres/chiffres, sans espace).">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label class="form-label fw-bold">
-                        Mot de passe <span id="passReq" class="text-danger" <?= $edit_data ? 'style="display:none;"' : '' ?>>*</span>
+                        Mot de passe <?= $edit_data ? '' : '<span class="text-danger">*</span>' ?>
                     </label>
                     <div class="input-group">
                         <input type="password" class="form-control intel-input" name="password" id="passwordField"
@@ -83,63 +83,97 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                         <button class="btn btn-outline-secondary" type="button" id="togglePassword"><i class="fas fa-eye"></i></button>
                         <div class="invalid-feedback"></div>
                     </div>
-                    <small id="passHelp" class="text-muted d-block mt-1">
-                        <?= $edit_data ? "<strong>Laissez vide pour garder l'ancien mot de passe</strong>" : "" ?>
-                    </small>
+                    <?php if ($edit_data): ?>
+                        <small class="text-muted">Laissez vide pour conserver le mot de passe actuel.</small>
+                    <?php endif; ?>
                 </div>
             </div>
             
-            <div class="d-flex gap-2 mt-2">
-                <button type="submit" class="btn ajouter shadow-sm">
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
                     <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
-                    <?= $edit_data ? 'Mettre à jour l\'utilisateur' : 'Enregistrer l\'utilisateur' ?>
+                    <?= $edit_data ? 'Mettre à jour' : 'Enregistrer l\'utilisateur' ?>
                 </button>
-                <a href="index.php?page=liste-user" class="btn btn-secondary shadow-sm">Annuler / Retour</a>
+                <a href="index.php?page=liste-user" class="btn btn-secondary shadow-sm">Annuler</a>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-// La logique intel-input avec data-pattern reste la même
-document.querySelectorAll('.intel-input').forEach(input => {
-    input.addEventListener('input', function() {
-        if(this.id === 'nomInput') this.value = this.value.toUpperCase();
-        if(this.id === 'usernameInput' || this.id === 'emailInput') this.value = this.value.toLowerCase();
-        
-        const isUpdate = document.getElementById('userId').value !== "";
-        if (isUpdate && this.name === "password" && this.value === "") {
-            this.classList.remove('is-invalid');
-            return;
-        }
+document.addEventListener('DOMContentLoaded', function() {
+    const inputs = {
+        nom: document.getElementById('nomInput'),
+        prenom: document.getElementById('prenomInput'),
+        user: document.getElementById('usernameInput'),
+        email: document.getElementById('emailInput')
+    };
 
-        const pattern = new RegExp(this.dataset.pattern);
-        if (this.value !== "" && !pattern.test(this.value)) {
-            this.classList.add('is-invalid');
-            const feedback = this.closest('.mb-3')?.querySelector('.invalid-feedback') || this.nextElementSibling;
-            if (feedback) feedback.textContent = this.dataset.msg;
+    // Nettoyage temps réel
+    inputs.nom.addEventListener('input', function() { this.value = this.value.toUpperCase().replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); });
+    inputs.prenom.addEventListener('input', function() { this.value = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); });
+    inputs.user.addEventListener('input', function() { this.value = this.value.replace(/\s/g, ''); });
+    inputs.email.addEventListener('input', function() { this.value = this.value.toLowerCase().replace(/\s/g, ''); });
+
+    // Validation Blur + Unicité
+    document.querySelectorAll('.intel-input').forEach(input => {
+        input.addEventListener('blur', async function() {
+            this.value = this.value.trim();
+            const idValue = document.getElementById('userId').value;
+            const fb = this.closest('.mb-3').querySelector('.invalid-feedback') || this.parentElement.querySelector('.invalid-feedback');
+            
+            this.classList.remove('is-invalid', 'is-valid');
+            
+            // Si modif et password vide, on ignore
+            if (idValue && this.name === 'password' && this.value === "") return;
+            if (this.value === "") return;
+
+            const pattern = new RegExp(this.dataset.pattern);
+            if (!pattern.test(this.value)) {
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = this.dataset.msg;
+                return;
+            }
+
+            // Vérif unicité pour Email et Username
+            if (this.name === 'email' || this.name === 'username') {
+                try {
+                    const res = await fetch(`pages/unique_check.php?type=user&field=${this.name}&value=${encodeURIComponent(this.value)}&id=${idValue}`);
+                    const data = await res.json();
+                    if (data.exists) {
+                        this.classList.add('is-invalid');
+                        if (fb) fb.textContent = `Ce ${this.name === 'email' ? 'email' : 'login'} est déjà utilisé.`;
+                    } else {
+                        this.classList.add('is-valid');
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                this.classList.add('is-valid');
+            }
+        });
+    });
+
+    // Toggle Password
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const f = document.getElementById('passwordField');
+        const i = this.querySelector('i');
+        f.type = f.type === 'password' ? 'text' : 'password';
+        i.classList.toggle('fa-eye'); i.classList.toggle('fa-eye-slash');
+    });
+
+    // Submit
+    document.getElementById('userForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (this.querySelectorAll('.is-invalid').length > 0) return;
+
+        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+        const data = await res.json();
+        if (data.ok) {
+            await Swal.fire({ icon: 'success', title: 'Utilisateur enregistré', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+            window.location.href = 'index.php?page=liste-user';
         } else {
-            this.classList.remove('is-invalid');
+            Swal.fire('Erreur', data.message || 'Vérifiez les champs', 'error');
         }
     });
-});
-
-document.getElementById('userForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (document.querySelectorAll('.is-invalid').length > 0) return;
-
-    const res = await fetch('process.php', { method: 'POST', body: new FormData(e.target) });
-    const data = await res.json();
-    if (data.ok) {
-        await Swal.fire({ icon: 'success', title: 'Succès', timer: 1500, showConfirmButton: false, timerProgressBar: true });
-        window.location.href = 'index.php?page=liste-user';
-    }
-});
-
-document.getElementById('togglePassword').addEventListener('click', function() {
-    const f = document.getElementById('passwordField');
-    const i = this.querySelector('i');
-    f.type = (f.type === 'password') ? 'text' : 'password';
-    i.classList.toggle('fa-eye'); i.classList.toggle('fa-eye-slash');
 });
 </script>

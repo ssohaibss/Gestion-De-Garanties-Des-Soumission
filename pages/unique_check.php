@@ -12,7 +12,7 @@ $config = [
     'user'        => ['table' => 'utilisateur',    'fields' => ['username' => 'username', 'email' => 'email']],
     'banque'      => ['table' => 'banque',         'fields' => ['code' => 'code', 'nom_banque' => 'nom_banque']],
     'agence'      => ['table' => 'agence',         'fields' => ['code' => 'code', 'nom' => 'nom']],
-    'fournisseur' => ['table' => 'soumissionnaire', 'fields' => ['nom' => 'nom_entreprise', 'email' => 'email']],
+    'fournisseur' => ['table' => 'soumissionnaire', 'fields' => ['nom' => 'nom_entreprise', 'email' => 'email', 'telephone' => 'telephone']],
     'appel_offre' => ['table' => 'appel_offre',    'fields' => ['numero_ao' => 'num_app_offre']],
     'garantie' => ['table' => 'garantie_soumission', 'fields' => ['num_garantie' => 'num_garantie']]
 ];
