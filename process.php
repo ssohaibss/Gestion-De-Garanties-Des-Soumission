@@ -643,7 +643,7 @@ case 'update_garantie':
     if (empty($num_garantie)) $errors['num_garantie'] = "Le numéro est obligatoire.";
     elseif (!is_numeric($num_garantie)) $errors['num_garantie'] = "Le numéro doit être numérique.";
     elseif (strlen($num_garantie) > 20) $errors['num_garantie'] = "Maximum 20 caractères.";
-
+    
     if (empty($deviseID)) $errors['deviseID'] = "La devise est obligatoire.";
     if (empty($fournisseurID)) $errors['soumissionnaireID'] = "Le soumissionnaire est obligatoire.";
     if (empty($agenceID)) $errors['agenceID'] = "L'agence est obligatoire.";
@@ -652,6 +652,14 @@ case 'update_garantie':
     if (empty($banqueID)) $errors['banqueID'] = "La banque est obligatoire.";
     if (empty($aoID)) $errors['appel_offreID'] = "L'appel d'offre est obligatoire.";
     if (empty($montant) || $montant <= 0) $errors['montant_garantie'] = "Montant valide requis.";
+ 
+    if (!$id && (!isset($_FILES['pdf_files']) || $_FILES['pdf_files']['error'] === UPLOAD_ERR_NO_FILE)) {
+    $errors['pdf_files'] = "Le document PDF est requis pour toute nouvelle garantie.";
+    }
+    if (!empty($errors)) {
+    echo json_encode(['ok' => false, 'errors' => $errors]);
+    exit;
+    }
     
 
     // Dates
@@ -794,72 +802,111 @@ case 'amendement':
     header('Content-Type: application/json');
     $errors = [];
     
+    // 1. DATA RECOVERY & CLEANING
     $garantie_id = intval($_POST['garantie_soumissionID'] ?? 0);
-    $num_amendement = intval($_POST['num_amendement'] ?? 0);
+    $num_amendement = trim($_POST['num_amendement'] ?? ''); 
     $date_amendement = trim($_POST['date_amendement'] ?? '');
     $type_amendementID = intval($_POST['type_amendementID'] ?? 0);
-    $nouveau_montant = !empty($_POST['nouveau_montant']) ? floatval(str_replace([' ', ','], ['', '.'], $_POST['nouveau_montant'])) : null;
+    
+    // Clean amount: remove spaces/commas and convert to float
+    $nouveau_montant_raw = $_POST['nouveau_montant'] ?? '';
+    $nouveau_montant = !empty($nouveau_montant_raw) ? floatval(str_replace([' ', ','], ['', '.'], $nouveau_montant_raw)) : null;
+    
     $nouvelle_date_expiration = !empty($_POST['nouvelle_date_expiration']) ? trim($_POST['nouvelle_date_expiration']) : null;
-    
     $today = date('Y-m-d');
-    
-    // Validations de base
-    if ($garantie_id <= 0) $errors['garantie_soumissionID'] = "Garantie invalide.";
-    if ($num_amendement <= 0) $errors['num_amendement'] = "Le numéro d'amendement est requis.";
-    if (empty($date_amendement)) $errors['date_amendement'] = "La date d'amendement est requise.";
-    elseif ($date_amendement > $today) $errors['date_amendement'] = "La date ne peut pas être future.";
-    if ($type_amendementID <= 0) $errors['type_amendementID'] = "Le type d'amendement est requis.";
-    
-    // Récupérer le code du type d'amendement
+
+    // 2. FETCH ORIGINAL DATA FOR COMPARISON
+    $original_date_x = null;
+    $date_emission = null;
     $typeCode = '';
+    
+    if ($garantie_id > 0) {
+        $stmtG = $pdo->prepare("SELECT date_emission, date_expiration FROM garantie_soumission WHERE id = ?");
+        $stmtG->execute([$garantie_id]);
+        $rowG = $stmtG->fetch(PDO::FETCH_ASSOC);
+        if ($rowG) {
+            $date_emission = $rowG['date_emission'];
+            $original_date_x = $rowG['date_expiration'];
+        }
+    }
+
     if ($type_amendementID > 0) {
-        $stmtType = $pdo->prepare("SELECT code FROM type_amendement WHERE id = ?");
-        $stmtType->execute([$type_amendementID]);
-        $typeCode = $stmtType->fetchColumn();
+        $stmtT = $pdo->prepare("SELECT code FROM type_amendement WHERE id = ?");
+        $stmtT->execute([$type_amendementID]);
+        $typeCode = $stmtT->fetchColumn();
     }
+
+    // 3. STRICT VALIDATIONS
+    if ($garantie_id <= 0) $errors['garantie_soumissionID'] = "Garantie invalide.";
     
-    // Validations conditionnelles selon le type
-    if ($typeCode === 'MONTANT' || $typeCode === 'MIXTE') {
-        if (empty($nouveau_montant) || $nouveau_montant <= 0) {
-            $errors['nouveau_montant'] = "Le nouveau montant est requis pour ce type d'amendement.";
-        }
-    }
-    
-    if ($typeCode === 'DATE' || $typeCode === 'MIXTE') {
-        if (empty($nouvelle_date_expiration)) {
-            $errors['nouvelle_date_expiration'] = "La nouvelle date d'expiration est requise pour ce type d'amendement.";
-        } elseif ($nouvelle_date_expiration <= $today) {
-            $errors['nouvelle_date_expiration'] = "La nouvelle date doit être dans le futur.";
-        }
-    }
-    
-    // Vérification unicité du numéro d'amendement
-    if ($num_amendement > 0) {
+    if (empty($num_amendement)) {
+        $errors['num_amendement'] = "Le numéro d'amendement est requis.";
+    } else {
         $checkStmt = $pdo->prepare("SELECT id FROM amendement WHERE num_amendement = ?");
         $checkStmt->execute([$num_amendement]);
         if ($checkStmt->fetch()) {
-            $errors['num_amendement'] = "Ce numéro d'amendement existe déjà.";
+            $errors['num_amendement'] = "Ce numéro d'amendement est déjà utilisé dans le système.";
+        }}
+
+    if (empty($date_amendement)) {
+        $errors['date_amendement'] = "La date d'amendement est requise.";
+    } elseif ($date_amendement > $today) {
+        $errors['date_amendement'] = "La date ne peut pas être dans le futur.";
+    } elseif ($date_emission && $date_amendement <= $date_emission) {
+        // NEW CONSTRAINT: Cannot be before Emission
+        $errors['date_amendement'] = "La date d'amendement ne peut pas être antérieure à la date d'émission ($date_emission).";
+    }
+
+    if ($type_amendementID <= 0) {
+        $errors['type_amendementID'] = "Le type d'amendement est requis.";
+    }
+
+    // PDF RESTRICTION: Mandatory and Basic Format Check
+    if (!isset($_FILES['amendment_pdf']) || $_FILES['amendment_pdf']['error'] === UPLOAD_ERR_NO_FILE) {
+    $errors['amendment_pdf'] = "Le document PDF de l'amendement est obligatoire.";
+} else {
+        $file_extension = strtolower(pathinfo($_FILES['amendment_pdf']['name'], PATHINFO_EXTENSION));
+        $file_size = $_FILES['amendment_pdf']['size'];
+        if ($file_extension !== 'pdf') {
+            $errors['amendment_pdf'] = "Seuls les fichiers PDF sont autorisés.";
+        } elseif ($file_size > 10 * 1024 * 1024) { // 10MB
+            $errors['amendment_pdf'] = "Le fichier est trop volumineux (Max 10 Mo).";
         }
     }
-    
-    // Vérifier que la garantie existe
-    if ($garantie_id > 0) {
-        $checkGarantie = $pdo->prepare("SELECT id FROM garantie_soumission WHERE id = ?");
-        $checkGarantie->execute([$garantie_id]);
-        if (!$checkGarantie->fetch()) {
-            $errors['garantie_soumissionID'] = "La garantie sélectionnée n'existe pas.";
+
+    // CONDITIONAL VALIDATIONS
+    if (($typeCode === 'MONTANT' || $typeCode === 'MIXTE') && (empty($nouveau_montant) || $nouveau_montant <= 0)) {
+        $errors['nouveau_montant'] = "Le nouveau montant est requis et doit être supérieur à 0.";
+    }
+
+    if ($typeCode === 'DATE' || $typeCode === 'MIXTE') {
+        if (empty($nouvelle_date_expiration)) {
+            $errors['nouvelle_date_expiration'] = "La nouvelle date d'expiration est requise.";
+        } elseif ($original_date_x && $nouvelle_date_expiration <= $original_date_x) {
+            $errors['nouvelle_date_expiration'] = "La nouvelle date doit être strictement après l'ancienne expiration ($original_date_x).";
         }
     }
+
+    // Uniqueness check for Amendment Number per Guarantee
+    if (!empty($num_amendement)) {
+    // We removed "AND garantie_soumissionID = ?" to make it a global check
+    $checkStmt = $pdo->prepare("SELECT id FROM amendement WHERE num_amendement = ?");
+    $checkStmt->execute([$num_amendement]);
     
+    if ($checkStmt->fetch()) {
+        $errors['num_amendement'] = "Ce numéro d'amendement est déjà utilisé dans le système.";
+    }
+    }
+
     if (!empty($errors)) {
         echo json_encode(['ok' => false, 'errors' => $errors]);
         exit;
     }
-    
+
+    // 4. DATABASE PERSISTENCE
     try {
         $pdo->beginTransaction();
-        
-        // Insérer l'amendement
+
         $sql = "INSERT INTO amendement (num_amendement, date_amendement, nouveau_montant, nouvelle_date_expiration, garantie_soumissionID, type_amendementID, utilisateurID) 
                 VALUES (?, ?, ?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
@@ -874,50 +921,39 @@ case 'amendement':
         ]);
         
         $amendment_id = $pdo->lastInsertId();
-        
-        // Gestion de l'upload du fichier PDF d'amendement
-        if (isset($_FILES['amendment_pdf']) && $_FILES['amendment_pdf']['error'] === 0) {
+
+        // 5. FILE UPLOAD PROCESSING (Polished & Secure)
+        if (isset($_FILES['amendment_pdf']) && $_FILES['amendment_pdf']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = 'uploads/amendements/';
-            
-            // Créer le dossier s'il n'existe pas
             if (!is_dir($upload_dir)) {
                 mkdir($upload_dir, 0777, true);
             }
 
             $filename = $_FILES['amendment_pdf']['name'];
-            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-            $file_size = $_FILES['amendment_pdf']['size'];
-            $allowed_extensions = ['pdf'];
-            $max_file_size = 10 * 1024 * 1024; // 10MB
+            // Generate unique filename with hash to avoid predictable names
+            $unique_filename = 'a_' . $amendment_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
+            $target_file = $upload_dir . $unique_filename;
 
-            if (in_array($extension, $allowed_extensions) && $file_size <= $max_file_size) {
-                // Nom unique avec timestamp
-                $unique_filename = 'a_' . $amendment_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
-                $target_file = $upload_dir . $unique_filename;
+            if (move_uploaded_file($_FILES['amendment_pdf']['tmp_name'], $target_file)) {
+                // Insert into document table
+                $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, ?)";
+                $docCode = 'AMD_' . $amendment_id . '_' . time();
+                $stmtDoc = $pdo->prepare($sqlDoc);
+                $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 2]); // Type 2 = AMENDEMENT
+                
+                $document_id = $pdo->lastInsertId();
 
-                if (move_uploaded_file($_FILES['amendment_pdf']['tmp_name'], $target_file)) {
-                    // Enregistrer dans la table document
-                    $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, ?)";
-                    $stmtDoc = $pdo->prepare($sqlDoc);
-                    $docCode = 'AMD_' . $amendment_id . '_' . time();
-                    $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 2]); // Type 2 = AMENDEMENT
-                    
-                    // Enregistrer la liaison entre document et amendement
-                    $sqlLink = "INSERT INTO document_amendement (documentID, amendementID) VALUES (?, ?)";
-                    $stmtLink = $pdo->prepare($sqlLink);
-                    $stmtLink->execute([$pdo->lastInsertId(), $amendment_id]);
-                }
+                // Link document to amendment in the junction table
+                $pdo->prepare("INSERT INTO document_amendement (documentID, amendementID) VALUES (?, ?)")
+                    ->execute([$document_id, $amendment_id]);
             }
         }
-        
-        // Les amendments ne modifient pas les valeurs originales de la garantie
-        // Les totaux sont calculés en affichage
-        
+
         $pdo->commit();
         echo json_encode(['ok' => true]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['ok' => false, 'message' => "Erreur : " . $e->getMessage()]);
+        echo json_encode(['ok' => false, 'message' => "Erreur technique : " . $e->getMessage()]);
     }
     exit;
     break;

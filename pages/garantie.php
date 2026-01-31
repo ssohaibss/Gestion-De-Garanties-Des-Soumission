@@ -97,7 +97,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Numéro de Garantie</label>
 
-                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control" placeholder="Numérique uniquement" maxlength="20" required>
+                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control" placeholder="Numérique uniquement" maxlength="20" >
 
                     <div class="invalid-feedback"></div>
 
@@ -108,7 +108,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Montant</label>
 
-                    <input type="text" name="montant_garantie" id="montantInput" class="form-control" placeholder="0.00" required>
+                    <input type="text" name="montant_garantie" id="montantInput" class="form-control" placeholder="0.00" >
 
                     <div class="invalid-feedback"></div>
 
@@ -119,7 +119,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Devise</label>
 
-                    <select name="deviseID" id="deviseSelect" class="form-select" required>
+                    <select name="deviseID" id="deviseSelect" class="form-select" >
 
                         <option value="">Sélectionner...</option>
 
@@ -140,7 +140,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Date d'Émission</label>
 
-                    <input type="date" name="date_emission" id="dateEInput" class="form-control" required>
+                    <input type="date" name="date_emission" id="dateEInput" class="form-control" >
 
                     <div class="invalid-feedback"></div>
 
@@ -150,7 +150,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Date d'Expiration</label>
 
-                    <input type="date" name="date_expiration" id="dateXInput" class="form-control" required>
+                    <input type="date" name="date_expiration" id="dateXInput" class="form-control" >
 
                     <div class="invalid-feedback"></div>
 
@@ -161,7 +161,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Soumissionnaire (Fournisseur)</label>
 
-                    <select name="soumissionnaireID" id="fournisseurSelect" class="form-select" required>
+                    <select name="soumissionnaireID" id="fournisseurSelect" class="form-select" >
 
                         <option value="">Choisir un fournisseur...</option>
 
@@ -203,7 +203,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Banque</label>
 
-                    <select name="banqueID" id="banqueSelect" class="form-select" required>
+                    <select name="banqueID" id="banqueSelect" class="form-select" >
 
                         <option value="">Sélectionner...</option>
 
@@ -224,7 +224,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Agence</label>
 
-                    <select name="agenceID" id="agenceSelect" class="form-select" required>
+                    <select name="agenceID" id="agenceSelect" class="form-select" >
                         
                         <option value="">Sélectionner une banque...</option>
 
@@ -247,7 +247,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Structure</label>
 
-                    <select name="structureID" id="structureSelect" class="form-select" required>
+                    <select name="structureID" id="structureSelect" class="form-select" >
 
                         <option value="">Sélectionner...</option>
 
@@ -268,7 +268,7 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                     <label class="form-label fw-bold">Statut</label>
 
-                    <select name="statutID" id="statutSelect" class="form-select" required>
+                    <select name="statutID" id="statutSelect" class="form-select" >
 
                         <option value="">Sélectionner...</option>
 
@@ -291,10 +291,11 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-12">
-                            <label class="form-label fw-bold">Ajouter un document PDF (Optionnel)</label>
-                            <input type="file" name="pdf_files" id="pdfFilesInput" class="form-control" accept=".pdf">
-                            <small class="text-muted d-block mt-2">
-                                <i class="fas fa-info-circle me-1"></i>Format PDF uniquement. Maximum 10 MB.
+                            <label class="form-label fw-bold">Ajouter un document PDF (Obligatoire)</label>
+                                     <input type="file" name="pdf_files" id="pdfFilesInput" class="form-control" accept=".pdf" >
+                             <div class="invalid-feedback"></div> 
+                             <small class="text-muted d-block mt-2">
+                            <i class="fas fa-info-circle me-1"></i>Format PDF uniquement. Maximum 10 MB.
                             </small>
                         </div>
                         <div class="col-md-12" id="pdfPreview"></div>
@@ -671,46 +672,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Soumission du formulaire amendement
     document.getElementById('amendementForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
+    e.preventDefault();
+    
+    // Reset visual errors
+    this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    this.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    
+    const fd = new FormData(this);
+    fd.append('form_type', 'amendement'); // Ensure this matches case 'amendement' in PHP
+
+    try {
+        const res = await fetch('process.php', { method: 'POST', body: fd });
+        const data = await res.json();
         
-        this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-        
-        const fd = new FormData(this);
-        fd.append('form_type', 'amendement');
-        
-        try {
-            const res = await fetch('process.php', { method: 'POST', body: fd });
-            const data = await res.json();
-            
-            if (data.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('amendementModal')).hide();
-                await Swal.fire({
-                    icon: 'success',
-                    title: 'Amendement enregistré',
-                    timer: 1500,
-                    showConfirmButton: false,
-                    timerProgressBar: true
-                });
-                location.reload();
-            } else if (data.errors) {
-                for (const [key, msg] of Object.entries(data.errors)) {
-                    const input = this.querySelector(`[name="${key}"]`);
-                    if (input) {
-                        input.classList.add('is-invalid');
-                        const feedback = input.nextElementSibling;
-                        if (feedback && feedback.classList.contains('invalid-feedback')) {
-                            feedback.textContent = msg;
-                        }
+        if (data.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('amendementModal')).hide();
+            await Swal.fire({
+                icon: 'success',
+                title: 'Amendement enregistré',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            location.reload();
+        } else if (data.errors) {
+            for (const [key, msg] of Object.entries(data.errors)) {
+                const input = this.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.classList.add('is-invalid');
+                    // Your logic finds the very next div.invalid-feedback
+                    const feedback = input.nextElementSibling;
+                    if (feedback && feedback.classList.contains('invalid-feedback')) {
+                        feedback.textContent = msg;
                     }
                 }
-                Swal.fire('Erreur', 'Veuillez corriger les champs en rouge.', 'error');
-            } else {
-                Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
             }
-        } catch (err) {
-            Swal.fire('Erreur', 'Lien avec le serveur rompu', 'error');
+            Swal.fire('Attention', 'Veuillez vérifier les informations saisies.', 'warning');
+        } else {
+            Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
         }
-    });
+    } catch (err) {
+        Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
+    }
+});
 });
 
 </script>
@@ -725,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="amendementForm">
+            <form id="amendementForm" novalidate>
                 <div class="modal-body">
                     <input type="hidden" name="garantie_soumissionID" id="amendementGarantieId">
                     
@@ -740,21 +743,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Numéro d'Amendement</label>
                             <input type="number" name="num_amendement" class="form-control" 
-                                   placeholder="Numéro unique" min="1" required>
+                                   placeholder="Numéro unique" min="1" >
                             <div class="invalid-feedback"></div>
                         </div>
                         
                         <!-- Date d'amendement -->
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Date d'Amendement</label>
-                            <input type="date" name="date_amendement" class="form-control" required>
+                            <input type="date" name="date_amendement" class="form-control" >
                             <div class="invalid-feedback"></div>
                         </div>
                         
                         <!-- Type d'amendement -->
                         <div class="col-md-12">
                             <label class="form-label fw-bold">Type d'Amendement</label>
-                            <select name="type_amendementID" id="typeAmendementSelect" class="form-select" required>
+                            <select name="type_amendementID" id="typeAmendementSelect" class="form-select" >
                                 <option value="">Sélectionner le type...</option>
                                 <?php foreach ($types_amendement as $type): ?>
                                     <option value="<?php echo $type['id']; ?>" data-code="<?php echo $type['code']; ?>">
