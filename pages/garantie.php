@@ -65,9 +65,14 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
         <h2><i class="fas fa-shield-alt me-2"></i>Gestion des Garanties</h2>
 
-        <button type="button" id="btnAjouterAmendement" class="btn btn-warning text-white" style="display: none;">
-            <i class="fas fa-file-signature me-2"></i>Ajouter Amendement
-        </button>
+        <div class="btn-group" role="group">
+            <button type="button" id="btnAjouterAmendement" class="btn btn-warning text-white" style="display: none;">
+                <i class="fas fa-file-signature me-2"></i>Ajouter Amendement
+            </button>
+            <button type="button" id="btnAjouterAuthentification" class="btn btn-primary" style="display: none;">
+                <i class="fas fa-certificate me-2"></i>Ajouter Authentification
+            </button>
+        </div>
 
     </div>
 
@@ -95,9 +100,12 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                 <div class="col-md-4">
 
-                    <label class="form-label fw-bold">Numéro de Garantie</label>
+                    <label class="form-label fw-bold">Numéro de Garantie <span class="text-danger">*</span></label>
 
-                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control" placeholder="Numérique uniquement" maxlength="20" >
+                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control intel-input" 
+       placeholder="Chiffres uniquement" maxlength="20" required
+       data-pattern="^[0-9]+$" 
+       data-msg="Ce champ doit contenir uniquement des chiffres.">
 
                     <div class="invalid-feedback"></div>
 
@@ -106,9 +114,11 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
 
                 <div class="col-md-4">
 
-                    <label class="form-label fw-bold">Montant</label>
+                    <label class="form-label fw-bold">Montant <span class="text-danger">*</span></label>
 
-                    <input type="text" name="montant_garantie" id="montantInput" class="form-control" placeholder="0.00" >
+                    <input type="text" name="montant_garantie" id="montantInput" class="form-control intel-input" placeholder="0.00" required
+                           data-pattern="^[0-9]+([.,][0-9]{1,2})?$"
+                           data-msg="Numérique valide (ex: 1000.50).">
 
                     <div class="invalid-feedback"></div>
 
@@ -393,7 +403,7 @@ function activateEditMode(g) {
         agenceSelect.value = g.agenceID;
     }
 
-    // --- LOGIQUE BOUTON AMENDEMENT ---
+    // --- LOGIQUE BOUTON AMENDEMENT & AUTHENTIFICATION ---
     currentEditingGarantie = {
         id: g.id,
         numGarantie: g.num_garantie,
@@ -402,6 +412,7 @@ function activateEditMode(g) {
         dateExpiration: g.date_expiration
     };
     document.getElementById('btnAjouterAmendement').style.display = 'inline-block';
+    document.getElementById('btnAjouterAuthentification').style.display = 'inline-block';
 
     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour la garantie';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -620,6 +631,32 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.show();
         });
     }
+    
+    // Ouvrir le modal Authentification
+    const btnAuthentification = document.getElementById('btnAjouterAuthentification');
+    
+    if (btnAuthentification) {
+        btnAuthentification.addEventListener('click', function() {
+            if (!currentEditingGarantie) {
+                Swal.fire('Attention', 'Veuillez d\'abord sélectionner une garantie à modifier.', 'warning');
+                return;
+            }
+            
+            // Remplir les infos du modal
+            document.getElementById('authentificationGarantieId').value = currentEditingGarantie.id;
+            document.getElementById('authentificationGarantieInfo').textContent = 
+                `Garantie n° ${currentEditingGarantie.numGarantie} - ${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
+            
+            // Reset form
+            document.getElementById('authentificationForm').reset();
+            document.getElementById('authentificationGarantieId').value = currentEditingGarantie.id;
+            document.getElementById('authentificationPdfPreview').innerHTML = '';
+            
+            // Ouvrir le modal
+            const modal = new bootstrap.Modal(document.getElementById('authentificationModal'));
+            modal.show();
+        });
+    }
 
     // Gestion dynamique des champs selon le type d'amendement
     function toggleAmendementFields() {
@@ -714,6 +751,218 @@ document.addEventListener('DOMContentLoaded', function() {
         Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
     }
 });
+
+// PDF Preview Handler pour authentification
+const authentificationPdfInput = document.getElementById('authentificationPdfInput');
+const authentificationPdfPreview = document.getElementById('authentificationPdfPreview');
+
+authentificationPdfInput.addEventListener('change', function() {
+    authentificationPdfPreview.innerHTML = '';
+    
+    if (this.files.length === 0) {
+        return;
+    }
+    
+    const file = this.files[0];
+    const previewDiv = document.createElement('div');
+    
+    if (file.type !== 'application/pdf') {
+        previewDiv.className = 'alert alert-danger';
+        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
+    } else {
+        previewDiv.className = 'alert alert-success';
+        previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
+    }
+    
+    authentificationPdfPreview.appendChild(previewDiv);
+});
+
+// Soumission du formulaire authentification
+document.getElementById('authentificationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Reset visual errors
+    this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    this.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    
+    const fd = new FormData(this);
+    
+    try {
+        const res = await fetch('process.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        
+        if (data.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('authentificationModal')).hide();
+            await Swal.fire({
+                icon: 'success',
+                title: 'Authentification enregistrée',
+                timer: 1500,
+                showConfirmButton: false,
+                timerProgressBar: true
+            });
+            location.reload();
+        } else if (data.errors) {
+            for (const [key, msg] of Object.entries(data.errors)) {
+                const input = this.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.classList.add('is-invalid');
+                    const feedback = input.nextElementSibling;
+                    if (feedback && feedback.classList.contains('invalid-feedback')) {
+                        feedback.textContent = msg;
+                    }
+                }
+            }
+            Swal.fire('Attention', 'Veuillez vérifier les informations saisies.', 'warning');
+        } else {
+            Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
+        }
+    } catch (err) {
+        Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
+    }
+});
+});
+
+// ===== VALIDATION INTEL INPUT (Blur AJAX) =====
+document.addEventListener('DOMContentLoaded', function() {
+    const numGarantieInput = document.getElementById('numGarantieInput');
+    const montantInput = document.getElementById('montantInput');
+    
+    // Force le numérique pur en temps réel (supprime lettres et tirets)
+    if (numGarantieInput) {
+        numGarantieInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    }
+    
+    if (montantInput) {
+        montantInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+        });
+    }
+    
+    // Validation Blur (Format + Check Unique)
+    document.querySelectorAll('.intel-input').forEach(input => {
+        input.addEventListener('blur', async function() {
+            this.value = this.value.trim();
+            const fb = this.nextElementSibling;
+            const pattern = new RegExp(this.dataset.pattern);
+            
+            // Correction ici : On utilise 'id' car l'ancien script attend $_REQUEST['id']
+            const idValue = document.getElementById('garantieId').value || 0;
+            
+            this.classList.remove('is-invalid', 'is-valid');
+            if (this.value === "") return;
+            
+            // 1. Vérif format (regex numérique définie dans le data-pattern)
+            if (!pattern.test(this.value)) {
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = this.dataset.msg;
+                return;
+            }
+            
+            // 2. Vérif unicité via AJAX
+            if (this.name === 'num_garantie') {
+                try {
+                    // On envoie bien &id= pour que l'ancien script puisse exclure la garantie actuelle en édition
+                    const response = await fetch(`unique_check.php?type=garantie&field=${this.name}&value=${encodeURIComponent(this.value)}&id=${idValue}`);
+                    const data = await response.json();
+                    
+                    if (data.exists) {
+                        this.classList.add('is-invalid');
+                        if (fb && fb.classList.contains('invalid-feedback')) {
+                            fb.textContent = 'Ce numéro existe déjà en base de données.';
+                        }
+                    } else {
+                        this.classList.add('is-valid');
+                    }
+                } catch (e) { 
+                    console.error("Erreur check unique:", e); 
+                }
+            } else {
+                this.classList.add('is-valid');
+            }
+        });
+    });
+});
+// ===== VALIDATION AMENDEMENT MODAL =====
+document.addEventListener('DOMContentLoaded', function() {
+    const amendementForm = document.getElementById('amendementForm');
+    if (!amendementForm) return;
+    
+    const numAmendementInput = amendementForm.querySelector('input[name="num_amendement"]');
+    
+    if (numAmendementInput) {
+        numAmendementInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+        
+        numAmendementInput.addEventListener('blur', async function() {
+            this.value = this.value.trim();
+            const fb = this.nextElementSibling;
+            const idValue = '';
+            
+            this.classList.remove('is-invalid', 'is-valid');
+            if (this.value === "") return;
+            
+            if (!/^[0-9]+$/.test(this.value)) {
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = 'Numérique uniquement.';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`unique_check.php?type=amendement&field=num_amendement&value=${encodeURIComponent(this.value)}&id=${idValue}`);
+                const data = await response.json();
+                if (data.exists) {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = 'Ce numéro existe déjà.';
+                } else {
+                    this.classList.add('is-valid');
+                }
+            } catch (e) { console.error(e); }
+        });
+    }
+});
+
+// ===== VALIDATION AUTHENTIFICATION MODAL =====
+document.addEventListener('DOMContentLoaded', function() {
+    const authentificationForm = document.getElementById('authentificationForm');
+    if (!authentificationForm) return;
+    
+    const numAuthInput = authentificationForm.querySelector('input[name="num_authentification"]');
+    
+    if (numAuthInput) {
+        numAuthInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        
+        numAuthInput.addEventListener('blur', async function() {
+            this.value = this.value.trim();
+            const fb = this.nextElementSibling;
+            const idValue = '';
+            
+            this.classList.remove('is-invalid', 'is-valid');
+            if (this.value === "") return;
+
+            if (!/^[0-9]+$/.test(this.value)) {
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = 'Numérique uniquement.';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`unique_check.php?type=authentification&field=num_authentification&value=${encodeURIComponent(this.value)}&id=${idValue}`);
+                const data = await response.json();
+                if (data.exists) {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = 'Ce numéro existe déjà.';
+                } else {
+                    this.classList.add('is-valid');
+                }
+            } catch (e) { console.error(e); }
+        });
+    }
 });
 
 </script>
@@ -741,9 +990,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="row g-3">
                         <!-- Numéro d'amendement -->
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Numéro d'Amendement</label>
-                            <input type="number" name="num_amendement" class="form-control" 
-                                   placeholder="Numéro unique" min="1" >
+                            <label class="form-label fw-bold">Numéro d'Amendement <span class="text-danger">*</span></label>
+                            <input type="text" name="num_amendement" class="form-control intel-input" 
+                                   placeholder="Numéro unique" required
+                                   data-pattern="^[0-9]+$"
+                                   data-msg="Numérique uniquement.">
                             <div class="invalid-feedback"></div>
                         </div>
                         
@@ -804,4 +1055,63 @@ document.addEventListener('DOMContentLoaded', function() {
             </form>
         </div>
     </div>
+</div>
+
+<!-- Modal Authentification -->
+<div class="modal fade" id="authentificationModal" tabindex="-1" aria-labelledby="authentificationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header text-white" style="background-color: #486a70;">
+        <h5 class="modal-title" id="authentificationModalLabel">
+          <i class="fas fa-certificate me-2"></i>Nouvelle Authentification
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="authentificationForm" novalidate>
+        <div class="modal-body">
+          <input type="hidden" name="garantie_soumissionID" id="authentificationGarantieId">
+          <input type="hidden" name="form_type" value="authentification">
+          
+          <!-- Info Garantie sélectionnée -->
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong id="authentificationGarantieInfo"></strong>
+          </div>
+          
+          <div class="row g-3">
+            <!-- Numéro d'authentification -->
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Numéro d'Authentification <span class="text-danger">*</span></label>
+              <input type="text" name="num_authentification" class="form-control intel-input"
+                placeholder="Numéro unique" required
+                data-pattern="^[0-9A-Za-z\-]{3,}$"
+                data-msg="Alphanumérique (min. 3 caractères).">
+              <div class="invalid-feedback"></div>
+            </div>
+            
+            <!-- Date d'authentification -->
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Date d'Authentification</label>
+              <input type="date" name="date_authentification" class="form-control" required>
+              <div class="invalid-feedback"></div>
+            </div>
+            
+            <!-- Fichier PDF -->
+            <div class="col-md-12">
+              <label class="form-label fw-bold">Document PDF</label>
+              <input type="file" name="authentification_pdf" id="authentificationPdfInput" class="form-control" accept=".pdf" required>
+              <div class="invalid-feedback"></div>
+              <div id="authentificationPdfPreview"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>Enregistrer Authentification
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>

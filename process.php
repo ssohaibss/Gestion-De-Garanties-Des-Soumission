@@ -980,99 +980,107 @@ case 'delete_amendement':
     break;
 
     //                                          AUTHENTIFICATION
+
+    
     case 'authentification':
     header('Content-Type: application/json');
-    $errors = [];
-    
-    // 1. Récupération (Mirror de l'amendement)
-    $garantie_id = intval($_POST['garantie_soumissionID'] ?? 0);
-    $num_auth    = intval($_POST['num_authentification'] ?? 0);
-    $date_auth   = trim($_POST['date_authentification'] ?? '');
-    
-    $today = date('Y-m-d');
-    
-    // 2. Validations
-    if ($garantie_id <= 0) $errors['garantie_soumissionID'] = "Garantie invalide.";
-    if ($num_auth <= 0)    $errors['num_authentification'] = "Le numéro d'authentification est requis.";
-    if (empty($date_auth)) $errors['date_authentification'] = "La date d'authentification est requise.";
-    elseif ($date_auth > $today) $errors['date_authentification'] = "La date ne peut pas être future.";
-
-    // Vérification unicité (Exactement comme amendement)
-    if ($num_auth > 0) {
-        $checkStmt = $pdo->prepare("SELECT id FROM authentification WHERE num_authentification = ?");
-        $checkStmt->execute([$num_auth]);
-        if ($checkStmt->fetch()) {
-            $errors['num_authentification'] = "Ce numéro d'authentification existe déjà.";
-        }
-    }
-
-    if (!empty($errors)) {
-        echo json_encode(['ok' => false, 'errors' => $errors]);
-        exit;
-    }
-    
     try {
         $pdo->beginTransaction();
-        
-        // 3. Insertion dans 'authentification' (Uniquement les 3 colonnes de ta table)
-        $sql = "INSERT INTO authentification (num_authentification, date_authentification, garantie_soumissionID) 
-                VALUES (?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$num_auth, $date_auth, $garantie_id]);
-        
+
+        $garantie_id = intval($_POST['garantie_soumissionID']);
+        $num_auth    = $_POST['num_authentification'];
+        $date_auth   = $_POST['date_authentification'];
+
+        // 1. Insertion dans la table authentification
+        $sqlAuth = "INSERT INTO authentification (num_authentification, date_authentification, garantie_soumissionID) 
+                    VALUES (?, ?, ?)";
+        $stmtAuth = $pdo->prepare($sqlAuth);
+        $stmtAuth->execute([$num_auth, $date_auth, $garantie_id]);
         $auth_id = $pdo->lastInsertId();
-        
-        // 4. Gestion de l'upload PDF (Mirror de amendment_pdf)
-        if (isset($_FILES['auth_pdf']) && $_FILES['auth_pdf']['error'] === 0) {
-            $upload_dir = 'uploads/authentifications/';
+
+        // 2. Gestion du Fichier PDF (Exactement comme amendement)
+        if (isset($_FILES['authentification_pdf']) && $_FILES['authentification_pdf']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = 'uploads/authentification/';
             if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-            $filename = $_FILES['auth_pdf']['name'];
-            $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-            
-            if ($extension === 'pdf') {
-                $unique_filename = 'auth_' . $auth_id . '_' . time() . '.pdf';
-                $target_file = $upload_dir . $unique_filename;
+            $filename = $_FILES['authentification_pdf']['name'];
+            $extension = pathinfo($filename, PATHINFO_EXTENSION);
+            $new_name = 'AUTH_' . $auth_id . '_' . time() . '.' . $extension;
+            $target_file = $upload_dir . $new_name;
 
-                if (move_uploaded_file($_FILES['auth_pdf']['tmp_name'], $target_file)) {
-                    // Enregistrement dans 'document' (Type 3 = Authentification)
-                    $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, ?)";
-                    $stmtDoc = $pdo->prepare($sqlDoc);
-                    $docCode = 'AUTH_' . $auth_id . '_' . time();
-                    $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 3]); 
-                    
-                    $document_id = $pdo->lastInsertId();
+            if (move_uploaded_file($_FILES['authentification_pdf']['tmp_name'], $target_file)) {
+                // Insertion dans la table document (Type 3 pour Authentification)
+                $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) 
+                           VALUES (?, ?, ?, ?, ?)";
+                $stmtDoc = $pdo->prepare($sqlDoc);
+                $docCode = 'DOC_AUTH_' . $auth_id;
+                $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 3]);
+                $document_id = $pdo->lastInsertId();
 
-                    // Enregistrement dans la table de liaison que tu as créée
-                    $sqlLink = "INSERT INTO document_authentification (documentID, authentificationID) VALUES (?, ?)";
-                    $stmtLink = $pdo->prepare($sqlLink);
-                    $stmtLink->execute([$document_id, $auth_id]);
-                }
+                // Liaison
+                $sqlLink = "INSERT INTO document_authentification (documentID, authentificationID) VALUES (?, ?)";
+                $pdo->prepare($sqlLink)->execute([$document_id, $auth_id]);
             }
         }
-        
+
         $pdo->commit();
         echo json_encode(['ok' => true]);
     } catch (Exception $e) {
-        $pdo->rollBack();
-        echo json_encode(['ok' => false, 'message' => "Erreur : " . $e->getMessage()]);
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
     }
     exit;
     break;
 
 case 'delete_authentification':
-    header('Content-Type: application/json');
-    $id = intval($_POST['id'] ?? 0);
-    if ($id > 0) {
-        try {
-            $stmt = $pdo->prepare("DELETE FROM authentification WHERE id = ?");
-            echo json_encode(['ok' => $stmt->execute([$id])]);
-        } catch (Exception $e) {
-            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+        header('Content-Type: application/json');
+        $id = intval($_POST['id'] ?? 0);
+
+        if ($id <= 0) {
+            echo json_encode(['ok' => false, 'message' => "ID d'authentification invalide."]);
+            exit;
         }
-    }
-    exit;
-    break;
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Récupérer les informations du document associé pour suppression physique
+            $sqlDoc = "SELECT d.id, d.chemin_access 
+                       FROM document d
+                       JOIN document_authentification da ON d.id = da.documentID
+                       WHERE da.authentificationID = ?";
+            $stmtDoc = $pdo->prepare($sqlDoc);
+            $stmtDoc->execute([$id]);
+            $document = $stmtDoc->fetch(PDO::FETCH_ASSOC);
+
+            if ($document) {
+                // suppression du fichier sur le disque
+                if (file_exists($document['chemin_access'])) {
+                    unlink($document['chemin_access']);
+                }
+
+                // suppression du lien de document
+                $pdo->prepare("DELETE FROM document_authentification WHERE authentificationID = ?")->execute([$id]);
+                
+                // suppression de l'entrée dans la table document
+                $pdo->prepare("DELETE FROM document WHERE id = ?")->execute([$document['id']]);
+            }
+
+            // 2. Suppression de l'entrée dans la table authentification
+            $stmtDelete = $pdo->prepare("DELETE FROM authentification WHERE id = ?");
+            $stmtDelete->execute([$id]);
+
+            $pdo->commit();
+            echo json_encode(['ok' => true]);
+
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['ok' => false, 'message' => "Erreur lors de la suppression : " . $e->getMessage()]);
+        }
+        exit;
+        break;
+
+
         default:
             $_SESSION['error'] = 'Type de formulaire non reconnu';
             header('Location: index.php');

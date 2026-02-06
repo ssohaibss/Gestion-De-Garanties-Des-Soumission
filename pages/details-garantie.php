@@ -29,6 +29,17 @@ if (!$garantie) {
     die("<div class='alert alert-danger m-3'>Garantie introuvable.</div>");
 }
 
+// Récupérer les authentifications liées à cette garantie
+$queryAuthentifications = "SELECT 
+    au.*
+FROM authentification au
+WHERE au.garantie_soumissionID = ?
+ORDER BY au.date_authentification DESC";
+
+$stmtAuthentifications = $pdo->prepare($queryAuthentifications);
+$stmtAuthentifications->execute([$id]);
+$authentifications = $stmtAuthentifications->fetchAll(PDO::FETCH_ASSOC);
+
 // Récupérer les amendements liés à cette garantie
 $queryAmendements = "SELECT 
     a.*,
@@ -50,6 +61,16 @@ $queryDocs = "SELECT * FROM document WHERE garantie_soumissionID = ? AND type_do
 $stmtDocs = $pdo->prepare($queryDocs);
 $stmtDocs->execute([$id]);
 $garantie_docs = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+
+// Récupérer les documents d'authentifications
+$queryAuthDocs = "SELECT d.*, au.num_authentification FROM document d 
+                  LEFT JOIN document_authentification dau ON d.id = dau.documentID 
+                  LEFT JOIN authentification au ON dau.authentificationID = au.id 
+                  WHERE d.type_documentID = 3 AND au.garantie_soumissionID = ? 
+                  ORDER BY au.date_authentification DESC";
+$stmtAuthDocs = $pdo->prepare($queryAuthDocs);
+$stmtAuthDocs->execute([$id]);
+$authentification_docs = $stmtAuthDocs->fetchAll(PDO::FETCH_ASSOC);
 
 // Récupérer les documents d'amendements
 $queryAmendDocs = "SELECT d.*, a.num_amendement FROM document d 
@@ -181,6 +202,67 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                         <p class="fw-bold mb-0"><?php echo htmlspecialchars($garantie['agence_nom'] ?? 'Non précisée'); ?></p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Section Authentifications -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #486a70;">
+                <span><i class="fas fa-certificate me-2"></i>Authentifications</span>
+                <span class="badge bg-white text-dark"><?php echo count($authentifications); ?> authentification(s)</span>
+            </div>
+            <div class="card-body p-0">
+                <?php if (count($authentifications) > 0): ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">N° Authentification</th>
+                                <th>Date</th>
+                                <th class="text-center">Document</th>
+                                <th class="text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($authentifications as $auth): ?>
+                            <tr>
+                                <td class="ps-3 fw-bold"><?php echo htmlspecialchars($auth['num_authentification']); ?></td>
+                                <td><?php echo date('d/m/Y', strtotime($auth['date_authentification'])); ?></td>
+                                <td class="text-center">
+                                    <?php 
+                                    $auth_doc = null;
+                                    foreach ($authentification_docs as $doc) {
+                                        if ($doc['num_authentification'] == $auth['num_authentification']) {
+                                            $auth_doc = $doc;
+                                            break;
+                                        }
+                                    }
+                                    if ($auth_doc && file_exists($auth_doc['chemin_access'])): ?>
+                                        <a href="<?php echo htmlspecialchars($auth_doc['chemin_access']); ?>" class="btn btn-sm btn-outline-primary" download title="<?php echo htmlspecialchars($auth_doc['nom_document']); ?>">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="text-muted small">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-danger delete-authentification" 
+                                            data-id="<?php echo $auth['id']; ?>" 
+                                            data-num="<?php echo htmlspecialchars($auth['num_authentification']); ?>">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php else: ?>
+                <div class="text-center py-4">
+                    <i class="fas fa-certificate fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">Aucune authentification enregistrée pour cette garantie.</p>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -331,6 +413,51 @@ if (result.isConfirmed) {
         }
     }
 }
+
+// Suppression d'amendement
+// Suppression d'authentification
+document.querySelectorAll('.delete-authentification').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const id = this.dataset.id;
+        const num = this.dataset.num;
+
+        const result = await Swal.fire({
+            title: 'Supprimer l\'authentification ?',
+            text: `Authentification n° ${num}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#486a70',
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (result.isConfirmed) {
+            const fd = new FormData();
+            fd.append('form_type', 'delete_authentification');
+            fd.append('id', id);
+
+            try {
+                const res = await fetch('process.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    await Swal.fire({ 
+                        title: 'Supprimée !', 
+                        icon: 'success', 
+                        timer: 1500, 
+                        showConfirmButton: false, 
+                        timerProgressBar: true 
+                    });
+                    location.reload();
+                } else {
+                    Swal.fire('Erreur', data.message || 'La suppression a échoué', 'error');
+                }
+            } catch (err) {
+                Swal.fire('Erreur', 'Lien rompu', 'error');
+            }
+        }
+    });
+});
 
 // Suppression d'amendement
 document.querySelectorAll('.delete-amendement').forEach(btn => {
