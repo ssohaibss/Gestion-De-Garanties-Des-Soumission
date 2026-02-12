@@ -4,7 +4,7 @@ $pdo = getDBConnection();
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// Requête mise à jour avec tes vrais noms de colonnes
+// Requête principale
 $query = "SELECT 
     g.*,
     s.nom_entreprise,
@@ -12,7 +12,7 @@ $query = "SELECT
     b.nom_banque,
     d.code as devise_code,
     ao.num_app_offre,
-    DATEDIFF(g.date_expiration, CURDATE()) as jours_restants
+    DATEDIFF(g.date_expiration, CURDATE()) as jours_restants_original
 FROM garantie_soumission g
 LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id
 LEFT JOIN agence a ON g.agenceID = a.id
@@ -29,18 +29,13 @@ if (!$garantie) {
     die("<div class='alert alert-danger m-3'>Garantie introuvable.</div>");
 }
 
-// Récupérer les authentifications liées à cette garantie
-$queryAuthentifications = "SELECT 
-    au.*
-FROM authentification au
-WHERE au.garantie_soumissionID = ?
-ORDER BY au.date_authentification DESC";
-
+// Authentifications
+$queryAuthentifications = "SELECT au.* FROM authentification au WHERE au.garantie_soumissionID = ? ORDER BY au.date_authentification DESC";
 $stmtAuthentifications = $pdo->prepare($queryAuthentifications);
 $stmtAuthentifications->execute([$id]);
 $authentifications = $stmtAuthentifications->fetchAll(PDO::FETCH_ASSOC);
 
-// Récupérer les amendements liés à cette garantie
+// Amendements (Trié par date décroissante)
 $queryAmendements = "SELECT 
     a.*,
     ta.code as type_code,
@@ -50,19 +45,18 @@ FROM amendement a
 LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id
 LEFT JOIN utilisateur u ON a.utilisateurID = u.id
 WHERE a.garantie_soumissionID = ?
-ORDER BY a.date_amendement DESC";
+ORDER BY a.date_amendement DESC, a.id DESC";
 
 $stmtAmendements = $pdo->prepare($queryAmendements);
 $stmtAmendements->execute([$id]);
 $amendements = $stmtAmendements->fetchAll(PDO::FETCH_ASSOC);
 
-// Récupérer les documents de garantie
+// Documents
 $queryDocs = "SELECT * FROM document WHERE garantie_soumissionID = ? AND type_documentID = 1 ORDER BY id DESC";
 $stmtDocs = $pdo->prepare($queryDocs);
 $stmtDocs->execute([$id]);
 $garantie_docs = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
 
-// Récupérer les documents d'authentifications
 $queryAuthDocs = "SELECT d.*, au.num_authentification FROM document d 
                   LEFT JOIN document_authentification dau ON d.id = dau.documentID 
                   LEFT JOIN authentification au ON dau.authentificationID = au.id 
@@ -72,7 +66,6 @@ $stmtAuthDocs = $pdo->prepare($queryAuthDocs);
 $stmtAuthDocs->execute([$id]);
 $authentification_docs = $stmtAuthDocs->fetchAll(PDO::FETCH_ASSOC);
 
-// Récupérer les documents d'amendements
 $queryAmendDocs = "SELECT d.*, a.num_amendement FROM document d 
                    LEFT JOIN document_amendement da ON d.id = da.documentID 
                    LEFT JOIN amendement a ON da.amendementID = a.id 
@@ -82,7 +75,7 @@ $stmtAmendDocs = $pdo->prepare($queryAmendDocs);
 $stmtAmendDocs->execute([$id]);
 $amendement_docs = $stmtAmendDocs->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculer les totaux d'amendements
+// --- CALCULS ---
 $total_montant_amendments = 0;
 $latest_expiration_date = $garantie['date_expiration'];
 
@@ -90,8 +83,12 @@ foreach ($amendements as $amend) {
     if (($amend['type_code'] === 'MONTANT' || $amend['type_code'] === 'MIXTE') && $amend['nouveau_montant']) {
         $total_montant_amendments += $amend['nouveau_montant'];
     }
+}
+
+foreach ($amendements as $amend) {
     if (($amend['type_code'] === 'DATE' || $amend['type_code'] === 'MIXTE') && $amend['nouvelle_date_expiration']) {
         $latest_expiration_date = $amend['nouvelle_date_expiration'];
+        break; 
     }
 }
 
@@ -187,7 +184,7 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
             </div>
         </div>
 
-<div class="card shadow-sm border-0 mb-4">
+        <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-white fw-bold">
                 <i class="fas fa-university me-2"></i>Détails Bancaires
             </div>
@@ -205,11 +202,9 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
             </div>
         </div>
 
-        <!-- Section Authentifications -->
         <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #486a70;">
-                <span><i class="fas fa-certificate me-2"></i>Authentifications</span>
-                <span class="badge bg-white text-dark"><?php echo count($authentifications); ?> authentification(s)</span>
+            <div class="card-header text-white" style="background-color: #486a70;">
+                <i class="fas fa-certificate me-2"></i>Authentification
             </div>
             <div class="card-body p-0">
                 <?php if (count($authentifications) > 0): ?>
@@ -217,8 +212,7 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th class="ps-3">N° Authentification</th>
-                                <th>Date</th>
+                                <th class="ps-3">Date d'Authentification</th>
                                 <th class="text-center">Document</th>
                                 <th class="text-center">Actions</th>
                             </tr>
@@ -226,8 +220,7 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                         <tbody>
                             <?php foreach ($authentifications as $auth): ?>
                             <tr>
-                                <td class="ps-3 fw-bold"><?php echo htmlspecialchars($auth['num_authentification']); ?></td>
-                                <td><?php echo date('d/m/Y', strtotime($auth['date_authentification'])); ?></td>
+                                <td class="ps-3 fw-bold"><?php echo date('d/m/Y', strtotime($auth['date_authentification'])); ?></td>
                                 <td class="text-center">
                                     <?php 
                                     $auth_doc = null;
@@ -239,10 +232,10 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                                     }
                                     if ($auth_doc && file_exists($auth_doc['chemin_access'])): ?>
                                         <a href="<?php echo htmlspecialchars($auth_doc['chemin_access']); ?>" class="btn btn-sm btn-outline-primary" download title="<?php echo htmlspecialchars($auth_doc['nom_document']); ?>">
-                                            <i class="fas fa-file-pdf"></i>
+                                            <i class="fas fa-download me-1"></i> Télécharger
                                         </a>
                                     <?php else: ?>
-                                        <span class="text-muted small">-</span>
+                                        <span class="text-muted small text-danger"><i class="fas fa-exclamation-circle"></i> Introuvable</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="text-center">
@@ -260,13 +253,12 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                 <?php else: ?>
                 <div class="text-center py-4">
                     <i class="fas fa-certificate fa-2x text-muted mb-2"></i>
-                    <p class="text-muted mb-0">Aucune authentification enregistrée pour cette garantie.</p>
+                    <p class="text-muted mb-0">Aucune authentification enregistrée.</p>
                 </div>
                 <?php endif; ?>
             </div>
         </div>
 
-        <!-- Section Amendements -->
         <div class="card shadow-sm border-0">
             <div class="card-header text-white d-flex justify-content-between align-items-center" style="background-color: #e67e22;">
                 <span><i class="fas fa-file-signature me-2"></i>Historique des Amendements</span>
@@ -289,11 +281,7 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                             </tr>
                         </thead>
                         <tbody>
-                            <?php 
-                            $running_montant = $garantie['montant_garantie'];
-                            $running_date = $garantie['date_expiration'];
-                            foreach ($amendements as $amend): 
-                            ?>
+                            <?php foreach ($amendements as $amend): ?>
                             <tr>
                                 <td class="ps-3 fw-bold"><?php echo $amend['num_amendement']; ?></td>
                                 <td><?php echo date('d/m/Y', strtotime($amend['date_amendement'])); ?></td>
@@ -309,21 +297,16 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
                                 <td class="text-end">
                                     <?php if ($amend['type_code'] === 'MONTANT' || $amend['type_code'] === 'MIXTE'): ?>
                                         <strong class="text-info"><?php echo number_format($amend['nouveau_montant'], 2, ',', ' '); ?></strong>
-                                        <?php $running_montant += $amend['nouveau_montant']; ?>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <div class="small">
-                                        <?php if ($amend['type_code'] === 'DATE' || $amend['type_code'] === 'MIXTE'): ?>
-                                            <div><span class="text-muted">Avant:</span> <strong><?php echo date('d/m/Y', strtotime($running_date)); ?></strong></div>
-                                            <?php $running_date = $amend['nouvelle_date_expiration']; ?>
-                                            <div class="text-success"><span>Modifiée:</span> <strong><?php echo date('d/m/Y', strtotime($running_date)); ?></strong></div>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </div>
+                                    <?php if ($amend['type_code'] === 'DATE' || $amend['type_code'] === 'MIXTE'): ?>
+                                        <strong class="text-success"><?php echo date('d/m/Y', strtotime($amend['nouvelle_date_expiration'])); ?></strong>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-center">
                                     <?php 
@@ -370,14 +353,22 @@ $montant_total = $garantie['montant_garantie'] + $total_montant_amendments;
             <div class="card-header bg-white fw-bold text-center">Validité</div>
             <div class="card-body text-center py-4">
                 <?php 
-                    $jours = $garantie['jours_restants'];
+                    $date_actuelle = new DateTime();
+                    $date_expiration_finale = new DateTime($latest_expiration_date);
+                    
+                    $date_actuelle->setTime(0, 0, 0);
+                    $date_expiration_finale->setTime(0, 0, 0);
+
+                    $interval = $date_actuelle->diff($date_expiration_finale);
+                    $jours = (int)$interval->format('%r%a');
+
                     $colorClass = ($jours > 15) ? 'bg-success' : (($jours > 0) ? 'bg-warning text-dark' : 'bg-danger');
                 ?>
                 <div class="badge p-3 rounded-pill mb-3 <?php echo $colorClass; ?>" style="font-size: 1rem;">
                     <i class="fas fa-clock me-2"></i>
-                    <?php echo ($jours > 0) ? $jours . " jours restants" : "Expirée"; ?>
+                    <?php echo ($jours >= 0) ? $jours . " jours restants" : "Expirée"; ?>
                 </div>
-                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -414,8 +405,6 @@ if (result.isConfirmed) {
     }
 }
 
-// Suppression d'amendement
-// Suppression d'authentification
 document.querySelectorAll('.delete-authentification').forEach(btn => {
     btn.addEventListener('click', async function() {
         const id = this.dataset.id;
@@ -423,7 +412,7 @@ document.querySelectorAll('.delete-authentification').forEach(btn => {
 
         const result = await Swal.fire({
             title: 'Supprimer l\'authentification ?',
-            text: `Authentification n° ${num}`,
+            text: `Suppression définitive.`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -459,7 +448,6 @@ document.querySelectorAll('.delete-authentification').forEach(btn => {
     });
 });
 
-// Suppression d'amendement
 document.querySelectorAll('.delete-amendement').forEach(btn => {
     btn.addEventListener('click', async function() {
         const id = this.dataset.id;
@@ -490,7 +478,7 @@ document.querySelectorAll('.delete-amendement').forEach(btn => {
                         icon: 'success', 
                         timer: 1500, 
                         showConfirmButton: false, 
-                        timerProgressBar: true 
+                        timerProgressBar: true
                     });
                     location.reload();
                 } else {

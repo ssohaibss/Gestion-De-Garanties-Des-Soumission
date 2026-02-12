@@ -201,24 +201,29 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </td>
                 <td><?php echo htmlspecialchars($row['statut'] ?? 'N/A'); ?></td>
                 <td>
-                    <!-- Actions buttons go here -->
-                     <div class="btn-group btn-group-sm" role="group">
-                                <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" 
-                                   class="btn eye" title="Détails">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" 
-                                   class="btn edit" title="Modifier">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </a>
-                                <a href="pages/delete-garantie.php?id=<?php echo $row['id']; ?>" 
-                                   class="btn btn-danger" 
-                                   onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette garantie ?');"
-                                   title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </div>
-                        </td>
+    <div class="btn-group btn-group-sm shadow-sm" role="group">
+        <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" 
+           class="btn text-white" 
+           style="background-color: #486a70;" 
+           title="Détails">
+            <i class="fas fa-eye"></i>
+        </a>
+
+        <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" 
+           class="btn text-white" 
+           style="background-color: #486a70; border-left: 1px solid rgba(255,255,255,0.3);" 
+           title="Modifier">
+            <i class="fas fa-pencil-alt"></i>
+        </a>
+
+        <button type="button" class="btn btn-sm btn-danger delete-garantie" 
+                data-id="<?php echo $row['id']; ?>" 
+                data-num="<?php echo htmlspecialchars($row['num_garantie']); ?>"
+                title="Supprimer">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+</td>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -266,3 +271,77 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <!-- Added Bootstrap Icons CDN for icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // On cible tous les boutons avec la classe .delete-garantie
+    const deleteButtons = document.querySelectorAll('.delete-garantie');
+
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Récupération des données depuis les attributs data-
+            const id = this.dataset.id;
+            const num = this.dataset.num;
+
+            // Affichage de l'alerte de confirmation
+            Swal.fire({
+                title: 'Supprimer la garantie ?',
+                text: `Voulez-vous vraiment supprimer la garantie n° ${num} ? Cette action est irréversible.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',    // Rouge pour supprimer
+                cancelButtonColor: '#486a70', // Ta couleur personnalisée pour annuler
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    // Préparation des données pour process.php
+                    const fd = new FormData();
+                    fd.append('form_type', 'delete_garantie');
+                    fd.append('id', id);
+
+                    try {
+                        const response = await fetch('process.php', {
+                            method: 'POST',
+                            body: fd
+                        });
+                        
+                        const data = await response.json();
+
+                        if (data.ok) {
+                            // Succès
+                            await Swal.fire({
+                                icon: 'success',
+                                title: 'Supprimée !',
+                                text: `La garantie n° ${num} a été supprimée avec succès.`,
+                                timer: 1500,
+                                showConfirmButton: false,
+                                timerProgressBar: true
+                            });
+                            // Rechargement de la page pour mettre à jour le tableau
+                            location.reload();
+                        } else {
+                            // Erreur retournée par le serveur
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Erreur',
+                                text: data.message || 'Une erreur est survenue lors de la suppression.'
+                            });
+                        }
+                    } catch (error) {
+                        // Erreur réseau ou JSON invalide
+                        console.error('Erreur:', error);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Erreur technique',
+                            text: 'Impossible de joindre le serveur.'
+                        });
+                    }
+                }
+            });
+        });
+    });
+});
+</script>

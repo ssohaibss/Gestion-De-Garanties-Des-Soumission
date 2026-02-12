@@ -138,7 +138,7 @@ async function confirmDelete(id, numAo) {
                     icon: 'success', 
                     timer: 1500, 
                     showConfirmButton: false, 
-                    timerProgressBar: true // Ton progrès conservé
+                    timerProgressBar: true
                 });
                 window.location.href = 'index.php?page=liste-appels-offre';
             } else {

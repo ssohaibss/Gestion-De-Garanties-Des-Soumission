@@ -57,80 +57,89 @@ if (isset($_GET['edit'])) {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('structureForm');
-    const libelleInput = document.getElementById('libelleInput');
-    const codeInput = document.getElementById('codeInput');
 
-    // BLOCAGE TEMPS RÉEL : Libellé
-    libelleInput.addEventListener('input', function() {
-        let val = this.value;
-        val = val.replace(/[0-9]/g, '');       // Supprime les chiffres
-        val = val.replace(/ {2,}/g, ' ');      // Bloque le double espace instantanément
-        if (val.startsWith(' ')) val = '';     // Empêche de commencer par un espace
-        this.value = val;
-    });
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-    // BLOCAGE TEMPS RÉEL : Code
-    codeInput.addEventListener('input', function() {
-        // Force majuscules et retire TOUT ce qui n'est pas une lettre A-Z (espaces inclus)
-        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
-    });
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = input.nextElementSibling;
+        input.classList.remove('is-invalid', 'is-valid');
 
-    // Validation Blur (Unicité)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            // Nettoyage final (enlève l'espace qui pourrait traîner à la fin)
-            this.value = this.value.trim();
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = "Requis.";
+            return false;
+        }
 
-            const fb = this.nextElementSibling;
-            const pattern = new RegExp(this.dataset.pattern);
-            const val = this.value;
-            const idVal = document.getElementById('structureId').value;
+        const pattern = new RegExp(input.dataset.pattern);
+        if (val !== "" && !pattern.test(val)) {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = input.dataset.msg;
+            return false;
+        }
+        if(val !== "") input.classList.add('is-valid');
+        return true;
+    }
 
-            this.classList.remove('is-invalid', 'is-valid');
-            if (val === "") return;
-
-            if (!pattern.test(val)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg;
-                return;
-            }
-
-            try {
-                const res = await fetch(`pages/unique_check.php?type=structure&field=${this.name}&value=${encodeURIComponent(val)}&id=${idVal}`);
-                const data = await res.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = "Cette valeur existe déjà.";
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error(e); }
-        });
-    });
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (form.querySelectorAll('.is-invalid').length > 0) return;
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false;
+        const val = input.value.trim();
+        const idValue = document.getElementById('structureId').value;
+        const fb = input.nextElementSibling;
 
         try {
-            const res = await fetch('process.php', { method: 'POST', body: new FormData(form) });
+            const res = await fetch(`pages/unique_check.php?type=structure&field=${input.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
             const data = await res.json();
-            if (data.ok) {
-                await Swal.fire({ 
-                    icon: 'success', title: 'Réussi', 
-                    timer: 1500, showConfirmButton: false, timerProgressBar: true 
-                });
-                window.location.href = 'index.php?page=liste-structure';
-            } else if (data.errors) {
-                for (const [key, msg] of Object.entries(data.errors)) {
-                    const el = form.querySelector(`[name="${key}"]`);
-                    if (el) {
-                        el.classList.add('is-invalid');
-                        if (el.nextElementSibling) el.nextElementSibling.textContent = msg;
-                    }
-                }
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = "Cette valeur existe déjà.";
+                return false;
             }
-        } catch (err) { console.error(err); }
+        } catch (e) {}
+        return true;
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    document.getElementById('libelleInput').addEventListener('input', function() {
+        let val = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' ');
+        if (val.startsWith(' ')) val = '';
+        this.value = val;
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.getElementById('codeInput').addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.querySelectorAll('.intel-input').forEach(i => i.addEventListener('blur', () => checkUniqueness(i)));
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        let isValid = true;
+        this.querySelectorAll('.intel-input').forEach(i => { if(!validateField(i)) isValid = false; });
+        
+        const inputs = this.querySelectorAll('.intel-input');
+        for(const i of inputs) { if(!await checkUniqueness(i)) isValid = false; }
+
+        if (!isValid) return;
+
+        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+        const data = await res.json();
+        if (data.ok) {
+            await Swal.fire({ icon: 'success', title: 'Réussi', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+            window.location.href = 'index.php?page=liste-structure';
+        }
     });
 });
 </script>

@@ -55,65 +55,94 @@ if (isset($_GET['edit'])) {
     </div>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const libelleInput = document.getElementById('libelleInput');
-    const codeInput = document.getElementById('codeInput');
+    const form = document.getElementById('deviseForm');
 
-    // NETTOYAGE TEMPS RÉEL
-    libelleInput.addEventListener('input', function() {
-        let val = this.value.replace(/[0-9]/g, ''); 
-        val = val.replace(/ {2,}/g, ' '); 
-        if (val.startsWith(' ')) val = val.trimStart();
-        this.value = val;
-    });
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-    codeInput.addEventListener('input', function() {
-        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
-    });
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = input.nextElementSibling;
+        input.classList.remove('is-invalid', 'is-valid');
 
-    // Validation Blur (Format + Unicité)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const fb = this.nextElementSibling;
-            const pattern = new RegExp(this.dataset.pattern);
-            const idValue = document.getElementById('deviseId').value;
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = "Requis.";
+            return false;
+        }
 
-            this.classList.remove('is-invalid', 'is-valid');
-            if (this.value === "") return;
+        const pattern = new RegExp(input.dataset.pattern);
+        if (val !== "" && !pattern.test(val)) {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = input.dataset.msg;
+            return false;
+        }
+        if(val !== "") input.classList.add('is-valid');
+        return true;
+    }
 
-            if (!pattern.test(this.value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg; 
-                return; 
-            }
-
-            try {
-                const response = await fetch(`pages/unique_check.php?type=devise&field=${this.name}&value=${encodeURIComponent(this.value)}&id=${idValue}`);
-                const data = await response.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = `Ce ${this.name === 'code' ? 'code ISO' : 'nom'} existe déjà.`;
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error(e); }
-        });
-    });
-
-    document.getElementById('deviseForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        if (this.querySelectorAll('.is-invalid').length > 0) return;
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false;
+        const val = input.value.trim();
+        const idValue = document.getElementById('deviseId').value;
+        const fb = input.nextElementSibling;
 
         try {
-            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const res = await fetch(`pages/unique_check.php?type=devise&field=${input.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
             const data = await res.json();
-            if (data.ok) {
-                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
-                window.location.href = 'index.php?page=liste-devise';
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = `Ce ${input.name === 'code' ? 'code' : 'nom'} existe déjà.`;
+                return false;
             }
-        } catch (err) { console.error(err); }
+        } catch (e) {}
+        return true;
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // Listeners
+    document.getElementById('libelleInput').addEventListener('input', function() {
+        let val = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); 
+        if (val.startsWith(' ')) val = val.trimStart();
+        this.value = val;
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.getElementById('codeInput').addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.querySelectorAll('.intel-input').forEach(i => i.addEventListener('blur', () => checkUniqueness(i)));
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        let isValid = true;
+        this.querySelectorAll('.intel-input').forEach(i => { if(!validateField(i)) isValid = false; });
+        
+        const inputs = this.querySelectorAll('.intel-input');
+        for(const i of inputs) { if(!await checkUniqueness(i)) isValid = false; }
+
+        if (!isValid) return;
+
+        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+        const data = await res.json();
+        if (data.ok) {
+            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+            window.location.href = 'index.php?page=liste-devise';
+        }
     });
 });
 </script>

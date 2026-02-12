@@ -57,65 +57,90 @@ if (isset($_GET['edit'])) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const nomInput = document.getElementById('nomInput');
-    const codeInput = document.getElementById('codeInput');
+    const form = document.getElementById('paysForm');
 
-    // NETTOYAGE TEMPS RÉEL
-    nomInput.addEventListener('input', function() {
-        let val = this.value.replace(/[0-9]/g, ''); // Pas de chiffres
-        val = val.replace(/ {2,}/g, ' ');           // Pas de doubles espaces
-        if (val.startsWith(' ')) val = val.trimStart();
-        this.value = val;
-    });
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-    codeInput.addEventListener('input', function() {
-        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, ''); // Lettres majuscules uniquement
-    });
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = input.closest('.mb-3').querySelector('.invalid-feedback');
+        input.classList.remove('is-invalid', 'is-valid');
 
-    // Validation Blur
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const fb = this.closest('.mb-3').querySelector('.invalid-feedback');
-            const pattern = new RegExp(this.dataset.pattern);
-            const fieldName = this.name;
-            const value = this.value;
-            const idValue = document.getElementById('paysId').value;
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = "Requis.";
+            return false;
+        }
 
-            this.classList.remove('is-invalid', 'is-valid');
-            if (value === "") return;
+        const pattern = new RegExp(input.dataset.pattern);
+        if (val !== "" && !pattern.test(val)) {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = input.dataset.msg;
+            return false;
+        }
+        if(val !== "") input.classList.add('is-valid');
+        return true;
+    }
 
-            if (!pattern.test(value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg; 
-                return; 
-            }
-
-            try {
-                const response = await fetch(`pages/unique_check.php?type=pays&field=${fieldName}&value=${encodeURIComponent(value)}&id=${idValue}`);
-                const data = await response.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = `Ce ${fieldName === 'nom' ? 'nom' : 'code'} est déjà enregistré.`;
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error(e); }
-        });
-    });
-
-    document.getElementById('paysForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        if (this.querySelectorAll('.is-invalid').length > 0) return;
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false;
+        const val = input.value.trim();
+        const idValue = document.getElementById('paysId').value;
+        const fb = input.closest('.mb-3').querySelector('.invalid-feedback');
 
         try {
-            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const res = await fetch(`pages/unique_check.php?type=pays&field=${input.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
             const data = await res.json();
-            if (data.ok) {
-                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
-                window.location.href = 'index.php?page=liste-pays';
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = `Ce ${input.name === 'nom' ? 'nom' : 'code'} est déjà utilisé.`;
+                return false;
             }
-        } catch (err) { console.error(err); }
+        } catch (e) {}
+        return true;
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    document.getElementById('nomInput').addEventListener('input', function() {
+        let val = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); 
+        if (val.startsWith(' ')) val = val.trimStart();
+        this.value = val;
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.getElementById('codeInput').addEventListener('input', function() {
+        this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+        validateField(this);
+        if(this.value) debouncedCheck(this);
+    });
+
+    document.querySelectorAll('.intel-input').forEach(i => i.addEventListener('blur', () => checkUniqueness(i)));
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        let isValid = true;
+        this.querySelectorAll('.intel-input').forEach(i => { if(!validateField(i)) isValid = false; });
+        
+        const inputs = this.querySelectorAll('.intel-input');
+        for(const i of inputs) { if(!await checkUniqueness(i)) isValid = false; }
+
+        if (!isValid) return;
+
+        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+        const data = await res.json();
+        if (data.ok) {
+            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+            window.location.href = 'index.php?page=liste-pays';
+        }
     });
 });
 </script>

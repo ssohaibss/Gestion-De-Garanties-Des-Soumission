@@ -670,7 +670,7 @@ case 'update_garantie':
     elseif ($date_x <= $date_e) $errors['date_expiration'] = "Doit être strictement après l'émission.";
     
     // Contrainte Statut / Expiration (Si Active alors non expirée)
-    // On suppose ici que ID 1 = Active (à adapter selon ta table statut)
+    // On suppose ici que ID 1 = Active 
     if ($statutID == "1" && $date_x < $today) {
         $errors['statutID'] = "Une garantie expirée ne peut pas être 'Active'.";
     }
@@ -796,6 +796,7 @@ case 'delete_garantie':
     exit;
     break;
 
+    
                                                      // AMENDEMENT
 
 case 'amendement':

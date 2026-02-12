@@ -55,71 +55,103 @@ if (isset($_GET['edit'])) {
     </div>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Nettoyage en temps réel
+    const form = document.getElementById('banqueForm');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = input.closest('.mb-3').querySelector('.invalid-feedback');
+        input.classList.remove('is-invalid', 'is-valid');
+
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = "Requis.";
+            return false;
+        }
+
+        const pattern = new RegExp(input.dataset.pattern);
+        if (val !== "" && !pattern.test(val)) {
+            input.classList.add('is-invalid');
+            if(fb) fb.textContent = input.dataset.msg;
+            return false;
+        }
+        
+        if(val !== "") input.classList.add('is-valid');
+        return true;
+    }
+
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false;
+        const val = input.value.trim();
+        const idValue = document.getElementById('banqueId').value;
+        const fb = input.closest('.mb-3').querySelector('.invalid-feedback');
+
+        try {
+            const res = await fetch(`pages/unique_check.php?type=banque&field=${input.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
+            const data = await res.json();
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = `Ce ${input.name === 'code' ? 'code' : 'nom'} est déjà utilisé.`;
+                return false;
+            }
+        } catch (e) {}
+        return true;
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // Listeners
     document.getElementById('banqueCode').addEventListener('input', function() {
         this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '');
+        validateField(this);
+        if(this.value) debouncedCheck(this);
     });
 
     document.getElementById('banqueNom').addEventListener('input', function() {
         let val = this.value.replace(/ {2,}/g, ' '); 
         if (val.startsWith(' ')) val = val.trimStart();
         this.value = val;
+        validateField(this);
+        if(this.value) debouncedCheck(this);
     });
 
-    // 2. Validation Blur + Unicité (Coordonné avec unique_check.php)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            const val = this.value.trim();
-            const idValue = document.getElementById('banqueId').value;
-            const fb = this.closest('.mb-3').querySelector('.invalid-feedback');
-            
-            this.classList.remove('is-invalid', 'is-valid');
-            if (val === "") return;
-
-            // Test Pattern
-            const pattern = new RegExp(this.dataset.pattern);
-            if (!pattern.test(val)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg;
-                return;
-            }
-
-            // Vérification Unicité
-            try {
-                const res = await fetch(`pages/unique_check.php?type=banque&field=${this.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
-                const data = await res.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = `Ce ${this.name === 'code' ? 'code' : 'nom'} est déjà utilisé.`;
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error("Erreur check:", e); }
-        });
+    document.querySelectorAll('.intel-input').forEach(i => {
+        i.addEventListener('blur', () => checkUniqueness(i));
     });
 
-    // 3. Envoi du formulaire
-    document.getElementById('banqueForm').addEventListener('submit', async function(e) {
+    form.addEventListener('submit', async function(e) {
         e.preventDefault();
+        let isValid = true;
         
-        // On déclenche le blur sur tous les champs pour être sûr avant de soumettre
-        this.querySelectorAll('.intel-input').forEach(i => i.dispatchEvent(new Event('blur')));
-
-        if (this.querySelectorAll('.is-invalid').length > 0) {
-            Swal.fire('Attention', 'Veuillez corriger les erreurs avant de continuer.', 'warning');
-            return;
+        // Validate all
+        this.querySelectorAll('.intel-input').forEach(i => { if(!validateField(i)) isValid = false; });
+        
+        // Await unique check for code and nom_banque
+        const inputs = [document.getElementById('banqueCode'), document.getElementById('banqueNom')];
+        for(const i of inputs) {
+            if(!await checkUniqueness(i)) isValid = false;
         }
+
+        if (!isValid) return;
 
         const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
         const data = await res.json();
-        
         if (data.ok) {
-            await Swal.fire({ icon: 'success', title: 'Opération réussie', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
             window.location.href = 'index.php?page=liste-banque';
         } else {
-            Swal.fire('Erreur', data.message || 'Une erreur est survenue', 'error');
+            Swal.fire('Erreur', data.message || 'Erreur', 'error');
         }
     });
 });

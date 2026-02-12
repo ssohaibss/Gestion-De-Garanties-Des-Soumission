@@ -35,18 +35,34 @@ $appels_offre = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
                 </thead>
                 <tbody>
                     <?php foreach ($appels_offre as $ao): ?>
-                        <tr>
-                            
-                            <td><strong><?= htmlspecialchars($ao['num_app_offre']); ?></strong></td>
-                            <td class="text-center"><?= $ao['nb_garanties']; ?> dossier(s)</td>
-                            <td class="text-center">
-                                <div class="btn-group">
-                                    <a href="index.php?page=details-appel-offre&id=<?= $ao['id']; ?>" class="btn btn-sm eye text-white" title="Voir les détails"><i class="fas fa-eye"></i></a>
-                                    <a href="index.php?page=appel-offre&edit=<?= $ao['id']; ?>" class="btn btn-sm edit text-white" title="Modifier"><i class="fas fa-pencil-alt"></i></a>
-                                    <button class="btn btn-sm btn-danger delete-ao" data-id="<?= $ao['id']; ?>" data-num="<?= htmlspecialchars($ao['num_app_offre']); ?>"><i class="fas fa-trash"></i></button>
-                                </div>
-                            </td>
-                        </tr>
+                       <tr>
+    <td><strong><?= htmlspecialchars($ao['num_app_offre']); ?></strong></td>
+    <td class="text-center"><?= $ao['nb_garanties']; ?> dossier(s)</td>
+    <td class="text-center">
+        <div class="btn-group shadow-sm">
+            <a href="index.php?page=details-appel-offre&id=<?= $ao['id']; ?>" 
+               class="btn btn-sm text-white" 
+               style="background-color: #486a70;" 
+               title="Voir les détails">
+               <i class="fas fa-eye"></i>
+            </a>
+
+            <a href="index.php?page=appel-offre&edit=<?= $ao['id']; ?>" 
+               class="btn btn-sm text-white" 
+               style="background-color: #486a70; border-left: 1px solid rgba(255,255,255,0.3);" 
+               title="Modifier">
+               <i class="fas fa-pencil-alt"></i>
+            </a>
+
+            <button class="btn btn-sm btn-danger delete-ao" 
+                    data-id="<?= $ao['id']; ?>" 
+                    data-num="<?= htmlspecialchars($ao['num_app_offre']); ?>" 
+                    title="Supprimer">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </td>
+</tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>

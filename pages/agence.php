@@ -78,11 +78,83 @@ $banques = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll
     </div>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Nettoyage strict des inputs
+    const form = document.getElementById('agenceForm');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = input.parentElement.querySelector('.invalid-feedback');
+        input.classList.remove('is-invalid', 'is-valid');
+
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = "Ce champ est requis.";
+            return false;
+        }
+
+        const pattern = new RegExp(input.dataset.pattern);
+        if (val !== "" && !pattern.test(val)) {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = input.dataset.msg;
+            return false;
+        }
+
+        if (val !== "") input.classList.add('is-valid');
+        return true;
+    }
+
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false;
+        
+        const val = input.value.trim();
+        const idVal = document.getElementById('agenceId').value;
+        const fb = input.parentElement.querySelector('.invalid-feedback');
+
+        if (input.name !== 'code' && input.name !== 'nom') return true;
+
+        try {
+            // CORRECTION: Ajout de banqueID et adresse pour le contexte
+            let params = `type=agence&field=${input.name}&value=${encodeURIComponent(val)}&id=${idVal}`;
+            
+            // Si on check le NOM, on ajoute les infos contextuelles pour unique_check.php
+            if(input.name === 'nom') {
+                const banqueID = document.querySelector('select[name="banqueID"]').value;
+                const adresse = document.getElementById('agenceAdresse').value;
+                params += `&banqueID=${encodeURIComponent(banqueID)}&adresse=${encodeURIComponent(adresse)}`;
+            }
+
+            const res = await fetch(`pages/unique_check.php?${params}`);
+            const data = await res.json();
+            
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = data.message || `Ce ${input.name} existe déjà.`;
+                return false;
+            } else {
+                if(!input.classList.contains('is-invalid')) input.classList.add('is-valid');
+                return true;
+            }
+        } catch (e) { return true; }
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // --- Listeners ---
     document.getElementById('agenceCode').addEventListener('input', function() {
         this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\-]/g, '');
+        validateField(this);
+        if (this.value) debouncedCheck(this);
     });
 
     ['agenceNom', 'agenceAdresse'].forEach(id => {
@@ -90,49 +162,47 @@ document.addEventListener('DOMContentLoaded', function() {
             let val = this.value.replace(/ {2,}/g, ' '); 
             if (val.startsWith(' ')) val = val.trimStart();
             this.value = val;
-        });
-    });
-
-    // 2. Validation Blur + Unique Check
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            const val = this.value.trim();
-            const idVal = document.getElementById('agenceId').value;
-            const fb = this.parentElement.querySelector('.invalid-feedback');
             
-            this.classList.remove('is-invalid', 'is-valid');
-            if (val === "") return;
-
-            const pattern = new RegExp(this.dataset.pattern);
-            if (!pattern.test(val)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg;
-                return;
-            }
-
-            if (this.name === 'code' || this.name === 'nom') {
-                try {
-                    const res = await fetch(`pages/unique_check.php?type=agence&field=${this.name}&value=${encodeURIComponent(val)}&id=${idVal}`);
-                    const data = await res.json();
-                    if (data.exists) {
-                        this.classList.add('is-invalid');
-                        if (fb) fb.textContent = `Ce ${this.name} existe déjà.`;
-                    } else {
-                        this.classList.add('is-valid');
-                    }
-                } catch (e) { console.error(e); }
-            } else {
-                this.classList.add('is-valid');
+            validateField(this);
+            // On re-check le nom si l'adresse change (car unicité combinée)
+            if (this.name === 'nom' && this.value) debouncedCheck(this);
+            if (this.name === 'adresse') {
+                const nomInput = document.getElementById('agenceNom');
+                if(nomInput.value) debouncedCheck(nomInput);
             }
         });
     });
 
-    // 3. Submit
-    document.getElementById('agenceForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        this.querySelectorAll('.intel-input').forEach(i => i.dispatchEvent(new Event('blur')));
+    // Re-check nom si la banque change
+    const banqueSelect = document.querySelector('select[name="banqueID"]');
+    if(banqueSelect) {
+        banqueSelect.addEventListener('change', function() {
+            const nomInput = document.getElementById('agenceNom');
+            if(nomInput.value) debouncedCheck(nomInput);
+        });
+    }
 
-        if (this.querySelectorAll('.is-invalid').length > 0) return;
+    document.querySelectorAll('.intel-input').forEach(input => {
+        input.addEventListener('blur', () => checkUniqueness(input));
+    });
+
+    // --- Submit ---
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        let isValid = true;
+        const uniqueInputs = [];
+
+        this.querySelectorAll('input, select').forEach(i => {
+            if (!validateField(i)) isValid = false;
+            if (i.name === 'code' || i.name === 'nom') uniqueInputs.push(i);
+        });
+
+        for (const input of uniqueInputs) {
+            if (!await checkUniqueness(input)) isValid = false;
+        }
+
+        if (!isValid) return;
 
         const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
         const data = await res.json();
@@ -144,8 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const input = this.querySelector(`[name="${key}"]`);
                 if (input) {
                     input.classList.add('is-invalid');
-                    const fb = input.parentElement.querySelector('.invalid-feedback');
-                    if (fb) fb.textContent = msg;
+                    input.parentElement.querySelector('.invalid-feedback').textContent = msg;
                 }
             }
         }

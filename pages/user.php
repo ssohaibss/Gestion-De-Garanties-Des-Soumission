@@ -53,7 +53,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                 </div>
                 <div class="col-md-6 mb-3">
                     <label class="form-label fw-bold">Rôle <span class="text-danger">*</span></label>
-                    <select class="form-select" name="role" required>
+                    <select class="form-select intel-input" name="role" required>
                         <option value="">Sélectionner un rôle</option>
                         <?php foreach ($roles as $role): ?>
                             <option value="<?= $role['id'] ?>" <?= (isset($edit_data['roleID']) && $edit_data['roleID'] == $role['id']) ? 'selected' : '' ?>>
@@ -61,6 +61,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="invalid-feedback"></div>
                 </div>
             </div>
 
@@ -100,79 +101,174 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
     </div>
 </div>
 
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const inputs = {
-        nom: document.getElementById('nomInput'),
-        prenom: document.getElementById('prenomInput'),
-        user: document.getElementById('usernameInput'),
-        email: document.getElementById('emailInput')
-    };
+    const form = document.getElementById('userForm');
+    if (!form) return;
 
-    // Nettoyage temps réel
-    inputs.nom.addEventListener('input', function() { this.value = this.value.toUpperCase().replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); });
-    inputs.prenom.addEventListener('input', function() { this.value = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); });
-    inputs.user.addEventListener('input', function() { this.value = this.value.replace(/\s/g, ''); });
-    inputs.email.addEventListener('input', function() { this.value = this.value.toLowerCase().replace(/\s/g, ''); });
+    // --- 1. UTILS ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-    // Validation Blur + Unicité
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const idValue = document.getElementById('userId').value;
-            const fb = this.closest('.mb-3').querySelector('.invalid-feedback') || this.parentElement.querySelector('.invalid-feedback');
-            
-            this.classList.remove('is-invalid', 'is-valid');
-            
-            // Si modif et password vide, on ignore
-            if (idValue && this.name === 'password' && this.value === "") return;
-            if (this.value === "") return;
+    // --- 2. FEEDBACK FINDER ---
+    function getFeedbackElement(input) {
+        let fb = input.nextElementSibling;
+        if (fb && fb.classList.contains('invalid-feedback')) return fb;
+        if (input.parentElement) {
+            fb = input.parentElement.querySelector('.invalid-feedback');
+            if (fb) return fb;
+        }
+        const container = input.closest('.mb-3');
+        if (container) return container.querySelector('.invalid-feedback');
+        return null;
+    }
 
-            const pattern = new RegExp(this.dataset.pattern);
-            if (!pattern.test(this.value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg;
-                return;
+    // --- 3. LOCAL VALIDATION ---
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = getFeedbackElement(input);
+        
+        input.classList.remove('is-invalid', 'is-valid');
+
+        // SPECIAL: Password in Edit Mode
+        if (input.id === 'passwordField' && document.getElementById('userId').value !== "") {
+            if (val === "") {
+                return true; 
             }
+        }
 
-            // Vérif unicité pour Email et Username
-            if (this.name === 'email' || this.name === 'username') {
-                try {
-                    const res = await fetch(`pages/unique_check.php?type=user&field=${this.name}&value=${encodeURIComponent(this.value)}&id=${idValue}`);
-                    const data = await res.json();
-                    if (data.exists) {
-                        this.classList.add('is-invalid');
-                        if (fb) fb.textContent = `Ce ${this.name === 'email' ? 'email' : 'login'} est déjà utilisé.`;
-                    } else {
-                        this.classList.add('is-valid');
-                    }
-                } catch (e) { console.error(e); }
+        // Required Check
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = "Ce champ est requis.";
+            return false;
+        }
+
+        // Green by default
+        if (val !== "") input.classList.add('is-valid');
+        return true;
+    }
+
+    // --- 4. SERVER UNIQUE CHECK ---
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false; 
+
+        const val = input.value.trim();
+        if (!val) return true;
+
+        const id = document.getElementById('userId').value || 0;
+        const field = input.name; 
+        const fb = getFeedbackElement(input);
+
+        if (!['username', 'email'].includes(field)) return true;
+
+        try {
+            const res = await fetch(`pages/unique_check.php?type=user&field=${field}&value=${encodeURIComponent(val)}&id=${id}`);
+            if (!res.ok) return true; 
+
+            const data = await res.json();
+            
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = `Ce ${field === 'email' ? 'email' : 'login'} est déjà pris.`;
+                return false;
             } else {
-                this.classList.add('is-valid');
+                if(!input.classList.contains('is-invalid')) input.classList.add('is-valid');
+                return true;
             }
+        } catch (e) { return true; }
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // --- 5. LISTENERS ---
+
+    const userIn = document.getElementById('usernameInput');
+    if (userIn) {
+        userIn.addEventListener('input', function() {
+            this.value = this.value.replace(/\s/g, ''); 
+            validateField(this);
+            if (this.value.length > 0) debouncedCheck(this);
         });
+    }
+
+    const emailIn = document.getElementById('emailInput');
+    if (emailIn) {
+        emailIn.addEventListener('input', function() {
+            this.value = this.value.replace(/\s/g, '').toLowerCase(); 
+            validateField(this);
+            if (this.value.length > 0) debouncedCheck(this);
+        });
+    }
+
+    form.querySelectorAll('input, select').forEach(el => {
+        if (el.id !== 'usernameInput' && el.id !== 'emailInput') {
+            const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+            el.addEventListener(evt, () => validateField(el));
+        }
     });
 
-    // Toggle Password
-    document.getElementById('togglePassword').addEventListener('click', function() {
+    document.getElementById('togglePassword')?.addEventListener('click', function() {
         const f = document.getElementById('passwordField');
         const i = this.querySelector('i');
         f.type = f.type === 'password' ? 'text' : 'password';
         i.classList.toggle('fa-eye'); i.classList.toggle('fa-eye-slash');
     });
 
-    // Submit
-    document.getElementById('userForm').addEventListener('submit', async function(e) {
+    // --- 6. SUBMIT ---
+    form.addEventListener('submit', async function(e) {
         e.preventDefault();
-        if (this.querySelectorAll('.is-invalid').length > 0) return;
+        
+        let isValid = true;
+        const uniqueInputsToCheck = [];
 
-        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
-        const data = await res.json();
-        if (data.ok) {
-            await Swal.fire({ icon: 'success', title: 'Utilisateur enregistré', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
-            window.location.href = 'index.php?page=liste-user';
-        } else {
-            Swal.fire('Erreur', data.message || 'Vérifiez les champs', 'error');
+        this.querySelectorAll('input, select').forEach(i => {
+            if (!validateField(i)) isValid = false;
+            if (['username', 'email'].includes(i.name)) uniqueInputsToCheck.push(i);
+        });
+
+        for (const input of uniqueInputsToCheck) {
+            if (!input.classList.contains('is-invalid')) {
+                if (!await checkUniqueness(input)) isValid = false;
+            } else {
+                isValid = false;
+            }
+        }
+
+        if (!isValid) {
+            const firstError = this.querySelector('.is-invalid');
+            if (firstError) firstError.focus();
+            return;
+        }
+
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const data = await res.json();
+            
+            if (data.ok) {
+                await Swal.fire({ icon: 'success', title: 'Enregistré', timer: 1500, showConfirmButton: false });
+                window.location.href = 'index.php?page=liste-user';
+            } else {
+                Swal.fire('Erreur', data.message || 'Erreur inconnue', 'error');
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+            }
+        } catch (err) {
+            Swal.fire('Erreur', 'Erreur serveur', 'error');
+            btn.innerHTML = oldText;
+            btn.disabled = false;
         }
     });
 });

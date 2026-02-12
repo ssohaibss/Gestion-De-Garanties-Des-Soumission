@@ -94,82 +94,221 @@ $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll(PD
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('fournisseurForm');
+
+    // --- 1. UTILS (Delay function) ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // --- 2. FIND FEEDBACK ELEMENT (Robust) ---
+    function getFeedbackElement(input) {
+        // Try next sibling
+        let fb = input.nextElementSibling;
+        if (fb && fb.classList.contains('invalid-feedback')) return fb;
+        
+        // Try parent's feedback (for input-groups or col-md)
+        if (input.parentElement) {
+            fb = input.parentElement.querySelector('.invalid-feedback');
+            if (fb) return fb;
+        }
+        
+        // Try closest container
+        const container = input.closest('.mb-3, .col-md-6, .col-md-4, .col-md-12');
+        if (container) return container.querySelector('.invalid-feedback');
+        
+        return null;
+    }
+
+    // --- 3. LOCAL VALIDATION (Format only) ---
+    function validateField(input) {
+        const val = input.value.trim();
+        const fb = getFeedbackElement(input);
+        
+        input.classList.remove('is-invalid', 'is-valid');
+
+        // Check Required
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = "Ce champ est requis.";
+            return false;
+        }
+
+        // Check Regex (if exists)
+        if (val !== "" && input.dataset.pattern) {
+            const pattern = new RegExp(input.dataset.pattern);
+            if (!pattern.test(val)) {
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = input.dataset.msg || "Format invalide.";
+                return false;
+            }
+        }
+        
+        // If basic format is OK, set Green (Unique check might override this later)
+        if (val !== "") input.classList.add('is-valid');
+        return true;
+    }
+
+    // --- 4. SERVER UNIQUE CHECK ---
+    async function checkUniqueness(input) {
+        // First, check basic format. If empty or invalid regex, don't check server.
+        if (!validateField(input)) return false;
+        
+        const val = input.value.trim();
+        if (!val) return true;
+
+        const idElement = document.getElementById('fournisseurId');
+        const idValue = idElement ? idElement.value : 0;
+        const fb = getFeedbackElement(input);
+        const fieldName = input.name;
+
+        // Only check these fields
+        if (!["nom", "email", "telephone"].includes(fieldName)) return true;
+
+        try {
+            const res = await fetch(`pages/unique_check.php?type=fournisseur&field=${fieldName}&value=${encodeURIComponent(val)}&id=${idValue}`);
+            if (!res.ok) return true;
+
+            const data = await res.json();
+            
+            if (data.exists) {
+                // FORCE RED ERROR LIVE
+                input.classList.remove('is-valid'); // Remove Green
+                input.classList.add('is-invalid');  // Add Red
+                if (fb) fb.textContent = "Cette valeur est déjà utilisée."; // Update Text
+                return false;
+            } else {
+                // Ensure Green if Unique
+                if(!input.classList.contains('is-invalid')) input.classList.add('is-valid');
+                return true;
+            }
+        } catch (e) { return true; }
+    }
+
+    // Create the debounced function (Waits 500ms after typing stops)
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // --- 5. LISTENERS ---
+    
+    // TELEPHONE (Live Check + Clean)
     const telInput = document.getElementById('telInput');
-    const nomInput = document.getElementById('nomInput');
-    const emailInput = document.getElementById('emailInput');
-    const adresseInput = document.getElementById('adresseInput');
-
-    // BLOCAGE TEMPS RÉEL
-    telInput.addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
-    });
-
-    emailInput.addEventListener('input', function() {
-        this.value = this.value.replace(/\s/g, '');
-    });
-
-    nomInput.addEventListener('input', function() {
-        this.value = this.value.replace(/[0-9]/g, ''); // Optionnel: retire les chiffres si souhaité
-        this.value = this.value.replace(/ {2,}/g, ' '); 
-        if (this.value.startsWith(' ')) this.value = this.value.trimStart();
-    });
-
-    adresseInput.addEventListener('input', function() {
-        this.value = this.value.replace(/ {2,}/g, ' '); 
-        if (this.value.startsWith(' ')) this.value = this.value.trimStart();
-    });
-
-    // Validation Blur (Nettoyage final + Unicité)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-
-            const fb = this.closest('.mb-3, .col-md-6').querySelector('.invalid-feedback');
-            const pattern = new RegExp(this.dataset.pattern);
-            const fieldName = this.name;
-            const value = this.value;
-            const idValue = document.getElementById('fournisseurId').value;
-
-            this.classList.remove('is-invalid', 'is-valid');
-            if (value === "") return;
-
-            if (!pattern.test(value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg; 
-                return; 
-            }
-
-            const fieldsToCheck = ["nom", "email", "telephone"];
-            if (fieldsToCheck.includes(fieldName)) {
-                try {
-                    // Note: on envoie la valeur avec le + pour le téléphone si c'est ce champ
-                    const checkVal = (fieldName === 'telephone') ? '+' + value : value;
-                    const response = await fetch(`pages/unique_check.php?type=fournisseur&field=${fieldName}&value=${encodeURIComponent(checkVal)}&id=${idValue}`);
-                    const data = await response.json();
-                    
-                    if (data.exists) {
-                        this.classList.add('is-invalid');
-                        if (fb) fb.textContent = "Cette valeur est déjà utilisée.";
-                    } else {
-                        this.classList.add('is-valid');
-                    }
-                } catch (e) { console.error(e); }
-            }
+    if(telInput) {
+        telInput.addEventListener('input', function() {
+            // 1. Strict Cleaning (Numbers Only)
+            this.value = this.value.replace(/[^0-9]/g, ''); 
+            // 2. Basic Validation (Green)
+            validateField(this);
+            // 3. Trigger Server Check (Will turn Red if exists)
+            if(this.value.length > 0) debouncedCheck(this);
         });
+    }
+
+    // Email
+    const emailInput = document.getElementById('emailInput');
+    if(emailInput) {
+        emailInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\s/g, '').toLowerCase();
+            validateField(this);
+            if(this.value) debouncedCheck(this);
+        });
+    }
+
+    // Nom
+    const nomInput = document.getElementById('nomInput');
+    if(nomInput) {
+        nomInput.addEventListener('input', function() {
+            let val = this.value.replace(/[0-9]/g, '').replace(/ {2,}/g, ' '); 
+            if (val.startsWith(' ')) this.value = this.value.trimStart();
+            validateField(this);
+            if(this.value) debouncedCheck(this);
+        });
+    }
+
+    // --- NEW: ADRESSE LIVE CHECK ---
+    const adrInput = document.getElementById('adresseInput');
+    if(adrInput) {
+        adrInput.addEventListener('input', function() {
+            validateField(this);
+        });
+    }
+
+    // General (Covers selects and other inputs not caught above)
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+        if(el.tagName === 'SELECT') {
+            el.addEventListener('change', () => validateField(el));
+        }
+        // General text inputs if ID doesn't match specific ones
+        if((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && 
+           !['telInput', 'emailInput', 'nomInput', 'adresseInput'].includes(el.id)) {
+            el.addEventListener('input', () => validateField(el));
+        }
     });
 
+    // Blur Check (Extra safety when leaving field)
+    document.querySelectorAll('.intel-input').forEach(i => i.addEventListener('blur', () => checkUniqueness(i)));
+
+    // --- 6. SUBMIT ---
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
-        if (this.querySelectorAll('.is-invalid').length > 0) return;
+        
+        let isValid = true;
+        const uniqueInputsToCheck = [];
+
+        // Validate all fields visually first
+        this.querySelectorAll('input, select, textarea').forEach(i => { 
+            if(!validateField(i)) isValid = false; 
+            if(["nom", "email", "telephone"].includes(i.name)) {
+                uniqueInputsToCheck.push(i);
+            }
+        });
+        
+        // Wait for final server check
+        for(const i of uniqueInputsToCheck) { 
+            // Only check if not already marked invalid by live check
+            if (!i.classList.contains('is-invalid')) {
+                if(!await checkUniqueness(i)) isValid = false; 
+            } else {
+                isValid = false;
+            }
+        }
+
+        if (!isValid) {
+            const firstError = this.querySelector('.is-invalid');
+            if(firstError) {
+                firstError.scrollIntoView({behavior: 'smooth', block: 'center'});
+                firstError.focus();
+            }
+            return;
+        }
 
         try {
             const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
             const data = await res.json();
+            
             if (data.ok) {
-                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                 window.location.href = 'index.php?page=liste-fournisseur';
+            } else {
+                if (data.errors) {
+                    for (const [key, msg] of Object.entries(data.errors)) {
+                        const input = form.querySelector(`[name="${key}"]`);
+                        if (input) {
+                            input.classList.add('is-invalid');
+                            const fb = getFeedbackElement(input);
+                            if(fb) fb.textContent = msg;
+                        }
+                    }
+                    Swal.fire('Erreur', 'Veuillez corriger les erreurs.', 'error');
+                } else {
+                    Swal.fire('Erreur', data.message || 'Erreur inconnue.', 'error');
+                }
             }
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
+        }
     });
 });
 </script>

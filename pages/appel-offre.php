@@ -66,85 +66,173 @@ $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
     </div>
 </div>
 
+
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('aoForm');
-    const numInput = document.getElementById('numAOInput');
-    const aoId = document.getElementById('aoId').value;
+    if (!form) return;
 
-    // 1. Nettoyage en temps réel (pas d'espaces)
-    numInput.addEventListener('input', function() {
-        this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/\-]/g, '');
-    });
+    // --- 1. UTILS & HELPERS ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
 
-    // 2. Validation au BLUR (quand on quitte le champ)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            const fieldName = this.name;
-            const value = this.value.trim();
-            const feedback = this.closest('.mb-3, .col-md-4').querySelector('.invalid-feedback');
+    function getFeedbackElement(input) {
+        let fb = input.nextElementSibling;
+        if (fb && fb.classList.contains('invalid-feedback')) return fb;
+        if (input.parentElement) {
+            fb = input.parentElement.querySelector('.invalid-feedback');
+            if (fb) return fb;
+        }
+        const col = input.closest('.col-md-4, .col-md-6, .mb-3');
+        if (col) return col.querySelector('.invalid-feedback');
+        return null;
+    }
 
-            this.classList.remove('is-invalid', 'is-valid');
-            if (value === "") return;
+    function showError(input, msg) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        const fb = getFeedbackElement(input);
+        if (fb) fb.textContent = msg;
+    }
 
-            // Règle de longueur minimum pour le numéro
-            if (fieldName === 'numero_ao') {
-                if (value.length < 3) {
-                    this.classList.add('is-invalid');
-                    if (feedback) feedback.textContent = "Le numéro est trop court (min. 3 caract.).";
-                    return;
-                }
-                
-                // Vérification d'unicité via AJAX
-                try {
-                    const res = await fetch(`pages/unique_check.php?type=appel_offre&field=numero_ao&value=${encodeURIComponent(value)}&id=${aoId}`);
-                    const data = await res.json();
-                    if (data.exists) {
-                        this.classList.add('is-invalid');
-                        if (feedback) feedback.textContent = "Ce numéro de dossier existe déjà.";
-                    } else {
-                        this.classList.add('is-valid');
-                    }
-                } catch (e) { console.error("Erreur unicité:", e); }
+    function showSuccess(input) {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+    }
+
+    //           VALIDATION
+    function validateFormat(input) {
+        const val = input.value.trim();
+        
+        // Required Check
+        if (input.hasAttribute('required') && val === "") {
+            showError(input, "Ce champ est requis.");
+            return false;
+        }
+
+        // Length Check for AO
+        if (input.name === 'numero_ao' && val.length < 3) {
+            showError(input, "Minimum 3 caractères.");
+            return false;
+        }
+
+        // Note: We do NOT set Green here for AO Number yet, 
+        if (input.name !== 'numero_ao') {
+            showSuccess(input);
+        }
+        return true;
+    }
+
+    // --- 3. SERVER CHECK ---
+    async function checkUniqueAO(input) {
+       
+        if (!validateFormat(input)) return false;
+
+        const val = input.value.trim();
+        const id = document.getElementById('aoId').value || 0;
+
+        try {
+            const res = await fetch(`pages/unique_check.php?type=appel_offre&field=numero_ao&value=${encodeURIComponent(val)}&id=${id}`);
+            const data = await res.json();
+            
+            if (data.exists) {
+                showError(input, "Ce numéro existe déjà.");
+                return false;
             } else {
-                this.classList.add('is-valid');
+                showSuccess(input);
+                return true;
+            }
+        } catch (e) { return true; } 
+    }
+
+    const debouncedCheck = debounce((input) => checkUniqueAO(input), 500);
+
+    //           LISTENERS 
+    const numInput = document.getElementById('numAOInput');
+    
+    // AO Input Listener
+    if (numInput) {
+        numInput.addEventListener('input', function() {
+            this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/\-]/g, '');
+            // Check format first
+            if(validateFormat(this)) {
+                // If format OK, debounce server check
+                debouncedCheck(this);
             }
         });
+    }
+
+    // Standard Inputs Listener
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+        if (el.id !== 'numAOInput') {
+            const evt = el.tagName === 'SELECT' ? 'change' : 'input';
+            el.addEventListener(evt, () => validateFormat(el));
+        }
     });
 
-    // 3. Soumission du formulaire
+    //              SUBMIT 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Reset des styles d'erreur
-        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        let isValid = true;
+
+        // A. Validate Standard Fields
+        const standardInputs = Array.from(this.querySelectorAll('input, select, textarea'))
+                                    .filter(el => el.id !== 'numAOInput');
+        
+        standardInputs.forEach(el => {
+            if (!validateFormat(el)) isValid = false;
+        });
+
+        // B. Validate AO Number (Format AND Uniqueness) explicitly
+        if (numInput) {
+            // 1. Check Format
+            if (!validateFormat(numInput)) {
+                isValid = false;
+            } else {
+                // 2. Check Uniqueness (Await result immediately)
+                const isUnique = await checkUniqueAO(numInput);
+                if (!isUnique) {
+                    isValid = false; // Mark invalid if duplicate
+                }
+            }
+        }
+
+        // C. Stop if any errors found
+        if (!isValid) {
+            const err = this.querySelector('.is-invalid');
+            if (err) err.focus();
+            return;
+        }
+
+        // D. Send
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
 
         try {
             const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
             const data = await res.json();
-
+            
             if (data.ok) {
-                await Swal.fire({ 
-                    icon: 'success', 
-                    title: 'Dossier enregistré !', 
-                    timer: 1500, 
-                    showConfirmButton: false,
-                    timerProgressBar: true // Ton progrès conservé ici
-                });
+                await Swal.fire({ icon: 'success', title: 'Enregistré !', timer: 1500, showConfirmButton: false });
                 window.location.href = 'index.php?page=liste-appels-offre';
-            } else if (data.errors) {
-                // Affichage des erreurs retournées par process.php (ex: date 0001)
-                Object.entries(data.errors).forEach(([field, msg]) => {
-                    const inp = form.querySelector(`[name="${field}"]`);
-                    if (inp) {
-                        inp.classList.add('is-invalid');
-                        const fb = inp.closest('.mb-3, .col-md-4').querySelector('.invalid-feedback');
-                        if (fb) fb.textContent = msg;
-                    }
-                });
+            } else {
+                Swal.fire('Erreur', data.message || 'Erreur inconnue', 'error');
+                btn.innerHTML = oldText;
+                btn.disabled = false;
             }
         } catch (err) {
-            Swal.fire({ icon: 'error', title: 'Erreur', text: 'Connexion serveur impossible.' });
+            Swal.fire('Erreur', 'Erreur serveur', 'error');
+            btn.innerHTML = oldText;
+            btn.disabled = false;
         }
     });
 });

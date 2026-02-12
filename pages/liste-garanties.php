@@ -81,7 +81,7 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
                                 $dateExp = date('d/m/Y', strtotime($row['date_expiration']));
                             ?>
                             <span class="badge <?php echo $badgeClass; ?>"><?php echo $dateExp; ?></span>
-                            <div class="small text-muted"><?php echo $row['jours_restants']; ?> jours restants</div>
+                            
                         </td>
                         <td class="text-end">
                             <?php $montant_total = $row['montant_garantie'] + $row['total_amendments_montant']; ?>
@@ -96,20 +96,29 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
                             <?php endif; ?>
                         </td>
                         <td class="text-center">
-                            <div class="btn-group">
-                                <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" class="btn btn-sm eye text-white" title="Détails">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" class="btn btn-sm edit text-white" title="Modifier">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </a>
-                                <button type="button" class="btn btn-sm btn-danger delete-garantie" 
-                                        data-id="<?php echo $row['id']; ?>" 
-                                        data-num="<?php echo htmlspecialchars($row['num_garantie']); ?>">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
+    <div class="btn-group shadow-sm">
+        <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" 
+           class="btn btn-sm text-white" 
+           style="background-color: #486a70;" 
+           title="Détails">
+            <i class="fas fa-eye"></i>
+        </a>
+
+        <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" 
+           class="btn btn-sm text-white" 
+           style="background-color: #486a70; border-left: 1px solid rgba(255,255,255,0.3);" 
+           title="Modifier">
+            <i class="fas fa-pencil-alt"></i>
+        </a>
+
+        <button type="button" class="btn btn-sm btn-danger delete-garantie" 
+                data-id="<?php echo $row['id']; ?>" 
+                data-num="<?php echo htmlspecialchars($row['num_garantie']); ?>"
+                title="Supprimer">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+</td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

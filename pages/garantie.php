@@ -1,70 +1,50 @@
 <?php
-
 require_once dirname(__DIR__) . '/database.php';
+if(!isset($pdo)) { $pdo = getDBConnection(); }
 
-$pdo = getDBConnection();
-
-
-//Récupération des données pour les selects
-
+// 1. Récupération des données pour les selects
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code ASC")->fetchAll();
-
 $appels_offre = $pdo->query("SELECT Id, num_app_offre FROM appel_offre ORDER BY num_app_offre DESC")->fetchAll();
-
 $fournisseurs = $pdo->query("SELECT Id, nom_entreprise FROM soumissionnaire ORDER BY nom_entreprise ASC")->fetchAll();
-
 $structures = $pdo->query("SELECT Id, libelle FROM structure ORDER BY libelle ASC")->fetchAll();
-
 $banque = $pdo->query("SELECT Id, nom_banque FROM banque ORDER BY nom_banque ASC")->fetchAll();
-
 $agences = $pdo->query("SELECT Id, nom, banqueID FROM agence ORDER BY nom ASC")->fetchAll();
+$statuts = $pdo->query("SELECT Id, libelle FROM statut ORDER BY libelle ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-$statuts = $pdo->query("SELECT Id, libelle FROM statut ORDER BY libelle ASC")->fetchAll();
+// 1.1. Détection Automatique des IDs de Statut
+$status_active = ['id' => '', 'libelle' => 'Active'];
+$status_expired = ['id' => '', 'libelle' => 'Expirée'];
 
-
-//Logique AUTO-EDIT (Si on vient de la liste avec ?edit=ID)
-
-$edit_data = null;
-
-if (isset($_GET['edit'])) {
-
-    $stmt = $pdo->prepare("SELECT * FROM garantie_soumission WHERE id = ?");
-
-    $stmt->execute([$_GET['edit']]);
-
-    $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
-
+foreach ($statuts as $s) {
+    $lib = mb_strtolower($s['libelle'], 'UTF-8');
+    if (strpos($lib, 'activ') !== false || strpos($lib, 'cours') !== false || strpos($lib, 'valid') !== false) {
+        $status_active = ['id' => $s['Id'], 'libelle' => $s['libelle']];
+    }
+    if (strpos($lib, 'expir') !== false || strpos($lib, 'clôt') !== false || strpos($lib, 'inval') !== false) {
+        $status_expired = ['id' => $s['Id'], 'libelle' => $s['libelle']];
+    }
 }
 
+// 2. Logique AUTO-EDIT (Mise à jour pour inclure les totaux CALCULÉS)
+$edit_data = null;
+if (isset($_GET['edit'])) {
+    $sql = "SELECT g.*, 
+            (SELECT COUNT(*) FROM authentification a WHERE a.garantie_soumissionID = g.id) as auth_count,
+            (g.montant_garantie + COALESCE((SELECT SUM(nouveau_montant) FROM amendement a LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id WHERE a.garantie_soumissionID = g.id AND ta.code IN ('MONTANT', 'MIXTE')), 0)) as montant_actuel,
+            COALESCE((SELECT nouvelle_date_expiration FROM amendement a LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id WHERE a.garantie_soumissionID = g.id AND ta.code IN ('DATE', 'MIXTE') AND a.nouvelle_date_expiration IS NOT NULL ORDER BY a.date_amendement DESC, a.id DESC LIMIT 1), g.date_expiration) as date_expiration_actuelle
+            FROM garantie_soumission g WHERE g.id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$_GET['edit']]);
+    $edit_data = $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
-//Liste des garanties pour le tableau
-
-$query = "SELECT g.*, s.nom_entreprise, d.code as devise_code, d.Id as devise_id, st.libelle as statut_nom
-
-          FROM garantie_soumission g
-
-          LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id
-
-          LEFT JOIN devise d ON g.deviseID = d.id
-
-          LEFT JOIN statut st ON g.statutID = st.id
-
-          ORDER BY g.id DESC LIMIT 15";
-
-$recent_garanties = $pdo->query($query)->fetchAll();
-
-// Types d'amendement pour le modal
+// 4. Types d'amendement
 $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
-
 ?>
 
-
 <div class="content-header mb-4">
-
     <div class="d-flex justify-content-between align-items-center">
-
         <h2><i class="fas fa-shield-alt me-2"></i>Gestion des Garanties</h2>
-
         <div class="btn-group" role="group">
             <button type="button" id="btnAjouterAmendement" class="btn btn-warning text-white" style="display: none;">
                 <i class="fas fa-file-signature me-2"></i>Ajouter Amendement
@@ -73,942 +53,169 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
                 <i class="fas fa-certificate me-2"></i>Ajouter Authentification
             </button>
         </div>
-
     </div>
-
 </div>
 
-
 <div class="card shadow-sm mb-5">
-
     <div class="card-header text-white" style="background-color: #486a70;">
-
         <i class="fas fa-edit me-2"></i><span id="cardHeaderTitle">Enregistrer une nouvelle garantie</span>
-
     </div>
-
     <div class="card-body">
-
         <form id="garantieForm" novalidate>
-
             <input type="hidden" name="id" id="garantieId">
-
             <input type="hidden" name="form_type" id="formType" value="garantie">
-
+            <input type="hidden" name="statutID" id="statutInput">
 
             <div class="row g-3">
-
                 <div class="col-md-4">
-
                     <label class="form-label fw-bold">Numéro de Garantie <span class="text-danger">*</span></label>
-
                     <input type="text" name="num_garantie" id="numGarantieInput" class="form-control intel-input" 
-       placeholder="Chiffres uniquement" maxlength="20" required
-       data-pattern="^[0-9]+$" 
-       data-msg="Ce champ doit contenir uniquement des chiffres.">
-
+                           placeholder="Chiffres uniquement" maxlength="20" required
+                           data-pattern="^[0-9]+$" 
+                           data-msg="Ce champ doit contenir uniquement des chiffres.">
                     <div class="invalid-feedback"></div>
-
                 </div>
 
-
                 <div class="col-md-4">
-
                     <label class="form-label fw-bold">Montant <span class="text-danger">*</span></label>
-
                     <input type="text" name="montant_garantie" id="montantInput" class="form-control intel-input" placeholder="0.00" required
                            data-pattern="^[0-9]+([.,][0-9]{1,2})?$"
                            data-msg="Numérique valide (ex: 1000.50).">
-
                     <div class="invalid-feedback"></div>
-
                 </div>
-
 
                 <div class="col-md-4">
-
-                    <label class="form-label fw-bold">Devise</label>
-
-                    <select name="deviseID" id="deviseSelect" class="form-select" >
-
+                    <label class="form-label fw-bold">Devise <span class="text-danger">*</span></label>
+                    <select name="deviseID" id="deviseSelect" class="form-select standard-input" required>
                         <option value="">Sélectionner...</option>
-
                         <?php foreach($devises as $d): ?>
-
                             <option value="<?= $d['Id'] ?>"><?= $d['code'] ?></option>
-
                         <?php endforeach; ?>
-
                     </select>
-
                     <div class="invalid-feedback"></div>
-
-                </div>
-
-
-                <div class="col-md-6">
-
-                    <label class="form-label fw-bold">Date d'Émission</label>
-
-                    <input type="date" name="date_emission" id="dateEInput" class="form-control" >
-
-                    <div class="invalid-feedback"></div>
-
                 </div>
 
                 <div class="col-md-6">
-
-                    <label class="form-label fw-bold">Date d'Expiration</label>
-
-                    <input type="date" name="date_expiration" id="dateXInput" class="form-control" >
-
+                    <label class="form-label fw-bold">Date d'Émission <span class="text-danger">*</span></label>
+                    <input type="date" name="date_emission" id="dateEInput" class="form-control standard-input" required>
                     <div class="invalid-feedback"></div>
-
                 </div>
 
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Date d'Expiration <span class="text-danger">*</span></label>
+                    <input type="date" name="date_expiration" id="dateXInput" class="form-control standard-input" required>
+                    <div class="invalid-feedback"></div>
+                </div>
 
                 <div class="col-md-6">
-
-                    <label class="form-label fw-bold">Soumissionnaire (Fournisseur)</label>
-
-                    <select name="soumissionnaireID" id="fournisseurSelect" class="form-select" >
-
+                    <label class="form-label fw-bold">Soumissionnaire (Fournisseur) <span class="text-danger">*</span></label>
+                    <select name="soumissionnaireID" id="fournisseurSelect" class="form-select standard-input" required>
                         <option value="">Choisir un fournisseur...</option>
-
                         <?php foreach($fournisseurs as $f): ?>
-
                             <option value="<?= $f['Id'] ?>"><?= htmlspecialchars($f['nom_entreprise']) ?></option>
-
                         <?php endforeach; ?>
-
                     </select>
-
                     <div class="invalid-feedback"></div>
-
                 </div>
-
 
                 <div class="col-md-6">
-
-                    <label class="form-label fw-bold">Appel d'Offre lié (Optionnel)</label>
-
-                    <select name="appel_offreID" id="aoSelect" class="form-select">
-
+                    <label class="form-label fw-bold">Appel d'Offre lié</label>
+                    <select name="appel_offreID" id="aoSelect" class="form-select standard-input">
                         <option value="">Aucun</option>
-
                         <?php foreach($appels_offre as $ao): ?>
-
                             <option value="<?= $ao['Id'] ?>"><?= htmlspecialchars($ao['num_app_offre']) ?></option>
-
                         <?php endforeach; ?>
-
                     </select>
-
                     <div class="invalid-feedback"></div>
-
                 </div>
 
-
-            <div class="col-md-4">
-
-                    <label class="form-label fw-bold">Banque</label>
-
-                    <select name="banqueID" id="banqueSelect" class="form-select" >
-
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Banque <span class="text-danger">*</span></label>
+                    <select name="banqueID" id="banqueSelect" class="form-select standard-input" required>
                         <option value="">Sélectionner...</option>
-
                         <?php foreach($banque as $b): ?>
                             <option value="<?= $b['Id'] ?>"><?= htmlspecialchars($b['nom_banque']) ?></option>
-
                         <?php endforeach; ?>
-
                     </select>
-
                     <div class="invalid-feedback"></div>
-
                 </div>
 
-
-
-               <div class="col-md-4">
-
-                    <label class="form-label fw-bold">Agence</label>
-
-                    <select name="agenceID" id="agenceSelect" class="form-select" >
-                        
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Agence <span class="text-danger">*</span></label>
+                    <select name="agenceID" id="agenceSelect" class="form-select standard-input" required>
                         <option value="">Sélectionner une banque...</option>
-
                         <?php foreach($agences as $a): ?>
                             <option value="<?= $a['Id'] ?>" data-banque="<?= $a['banqueID'] ?>" style="display:none;">
-
-                      <?= htmlspecialchars($a['nom']) ?>
-
+                                <?= htmlspecialchars($a['nom']) ?>
                              </option>
-
                          <?php endforeach; ?>
-
                     </select>
-
-                         <div class="invalid-feedback"></div>
-                    </div>
-
+                    <div class="invalid-feedback"></div>
+                </div>
 
                 <div class="col-md-4">
-
-                    <label class="form-label fw-bold">Structure</label>
-
-                    <select name="structureID" id="structureSelect" class="form-select" >
-
+                    <label class="form-label fw-bold">Structure <span class="text-danger">*</span></label>
+                    <select name="structureID" id="structureSelect" class="form-select standard-input" required>
                         <option value="">Sélectionner...</option>
-
                         <?php foreach($structures as $s): ?>
-
                             <option value="<?= $s['Id'] ?>"><?= htmlspecialchars($s['libelle']) ?></option>
-
                         <?php endforeach; ?>
-
                     </select>
-
                     <div class="invalid-feedback"></div>
-
                 </div>
-
-
-                <div class="col-md-4">
-
-                    <label class="form-label fw-bold">Statut</label>
-
-                    <select name="statutID" id="statutSelect" class="form-select" >
-
-                        <option value="">Sélectionner...</option>
-
-                        <?php foreach($statuts as $st): ?>
-
-                            <option value="<?= $st['Id'] ?>"><?= htmlspecialchars($st['libelle']) ?></option>
-
-                        <?php endforeach; ?>
-
-                    </select>
-
-                    <div class="invalid-feedback"></div>
-
-                </div>
-
-                </div>
-
-            <!-- Section Document PDF -->
-          
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-12">
-                            <label class="form-label fw-bold">Ajouter un document PDF (Obligatoire)</label>
-                                     <input type="file" name="pdf_files" id="pdfFilesInput" class="form-control" accept=".pdf" >
-                             <div class="invalid-feedback"></div> 
-                             <small class="text-muted d-block mt-2">
-                            <i class="fas fa-info-circle me-1"></i>Format PDF uniquement. Maximum 10 MB.
-                            </small>
-                        </div>
-                        <div class="col-md-12" id="pdfPreview"></div>
-                    </div>
-                </div>
-        
-
-            <div class="mt-4">
-
-                <button type="submit" id="submitBtn" class="btn ajouter">
-
-                    <i class="fas fa-save me-2"></i>Enregistrer la Garantie
-
-                </button>
-
             </div>
 
+            <div class="card-body px-0">
+                <div class="row g-3">
+                    <div class="col-md-12">
+                        <label class="form-label fw-bold">Ajouter un document PDF <span class="text-danger">*</span></label>
+                        <input type="file" name="pdf_files" id="pdfFilesInput" class="form-control standard-input" accept=".pdf" required>
+                        <div class="invalid-feedback">Ce champ est requis pour une nouvelle garantie.</div> 
+                        <small class="text-muted d-block mt-2">
+                        <i class="fas fa-info-circle me-1"></i>Format PDF uniquement. Maximum 10 MB.
+                        </small>
+                    </div>
+                    <div class="col-md-12" id="pdfPreview"></div>
+                </div>
+            </div>
+        
+            <div class="mt-4">
+                <button type="submit" id="submitBtn" class="btn ajouter">
+                    <i class="fas fa-save me-2"></i>Enregistrer la Garantie
+                </button>
+            </div>
         </form>
-
     </div>
-
 </div>
 
-
-
-<script>
-
-const form = document.getElementById('garantieForm');
-
-const numInput = document.getElementById('numGarantieInput');
-
-const montantInput = document.getElementById('montantInput');
-
-
-//Unicité AJAX en temps réel
-
-numInput.addEventListener('blur', async function() {
-
-    if(!this.value) return;
-
-    const currentId = document.getElementById('garantieId').value || 0;
-
-    const res = await fetch(`unique_check.php?type=garantie&field=num_garantie&value=${this.value}&current_id=${currentId}`);
-
-    const data = await res.json();
-
-    if(data.exists) {
-
-        this.classList.add('is-invalid');
-
-        this.nextElementSibling.textContent = "Ce numéro est déjà utilisé.";
-
-    } else {
-
-        this.classList.remove('is-invalid');
-
-    }
-
-});
-
-
-// Variable globale pour stocker la garantie en cours d'édition
-let currentEditingGarantie = null;
-
-
-// Mode Edition
-function activateEditMode(g) {
-    document.getElementById('cardHeaderTitle').textContent = "Modifier la Garantie n° " + g.num_garantie;
-    document.getElementById('formType').value = 'update_garantie';
-    document.getElementById('garantieId').value = g.id;
-    document.getElementById('numGarantieInput').value = g.num_garantie;
-    document.getElementById('montantInput').value = g.montant_garantie;
-    document.getElementById('dateEInput').value = g.date_emission;
-    document.getElementById('dateXInput').value = g.date_expiration;
-    document.getElementById('fournisseurSelect').value = g.soumissionnaireID;
-    document.getElementById('deviseSelect').value = g.deviseID;
-    document.getElementById('aoSelect').value = g.appel_offreID;
-    document.getElementById('structureSelect').value = g.structureID;
-    document.getElementById('statutSelect').value = g.statutID;
-
-    // --- LOGIQUE BANQUE / AGENCE ---
-    const agenceSelect = document.getElementById('agenceSelect');
-    const banqueSelect = document.getElementById('banqueSelect');
-    
-    // 1. Trouver l'option de l'agence pour récupérer son ID banque
-    const agenceOption = agenceSelect.querySelector(`option[value="${g.agenceID}"]`);
-    if (agenceOption) {
-        const banqueId = agenceOption.getAttribute('data-banque');
-        banqueSelect.value = banqueId; // Sélectionne la banque
-        
-        // 2. Déclencher manuellement l'affichage des agences de cette banque
-        banqueSelect.dispatchEvent(new Event('change')); 
-        
-        // 3. Sélectionner l'agence finale
-        agenceSelect.value = g.agenceID;
-    }
-
-    // --- LOGIQUE BOUTON AMENDEMENT & AUTHENTIFICATION ---
-    currentEditingGarantie = {
-        id: g.id,
-        numGarantie: g.num_garantie,
-        montant: g.montant_garantie,
-        deviseCode: g.devise_code || '', 
-        dateExpiration: g.date_expiration
-    };
-    document.getElementById('btnAjouterAmendement').style.display = 'inline-block';
-    document.getElementById('btnAjouterAuthentification').style.display = 'inline-block';
-
-    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour la garantie';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-
-    <?php if ($edit_data): ?> activateEditMode(<?= json_encode($edit_data) ?>); <?php endif; ?>
-
-});
-
-
-//Envoi AJAX avec gestion des erreurs par champ
-
-form.addEventListener('submit', async (e) => {
-
-    e.preventDefault();
-
-    form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-
-
-    const fd = new FormData(form);
-
-    try {
-
-        const res = await fetch('process.php', { method: 'POST', body: fd });
-
-        const data = await res.json();
-
-
-        if (data.ok) {
-
-            await Swal.fire({ icon: 'success', title: 'Réussi', timer: 1500, timerProgressBar: true, showConfirmButton: false });
-
-            window.location.href = 'index.php?page=liste-garanties';
-
-        } else if (data.errors) {
-
-            for (const [key, msg] of Object.entries(data.errors)) {
-
-                const input = form.querySelector(`[name="${key}"]`);
-
-                if (input) {
-
-                    input.classList.add('is-invalid');
-
-                    const feedback = input.nextElementSibling;
-
-                    if (feedback && feedback.classList.contains('invalid-feedback')) feedback.textContent = msg;
-
-                }
-
-            }
-
-            Swal.fire({ icon: 'error', title: 'Erreur', text: 'Veuillez corriger les champs en rouge.' });
-
-        }
-
-    } catch(e) { Swal.fire('Erreur', 'Lien rompu', 'error'); }
-
-});
-
-
-// Actions tableau
-
-document.querySelectorAll('.edit-btn').forEach(btn => {
-
-    btn.addEventListener('click', function() { activateEditMode(JSON.parse(this.dataset.garantie)); });
-
-});
-
-
-document.querySelectorAll('.delete-btn').forEach(btn => {
-
-    btn.addEventListener('click', async function() {
-
-        const id = this.dataset.id;
-
-        const result = await Swal.fire({
-
-            title: 'Supprimer ?',
-
-            text: `Garantie n° ${this.dataset.num}`,
-
-            icon: 'warning',
-
-            showCancelButton: true,
-
-            confirmButtonColor: '#d33',
-
-            cancelButtonColor: '#486a70'
-
-        });
-
-        if(result.isConfirmed) {
-
-            const fd = new FormData(); fd.append('form_type', 'delete_garantie'); fd.append('id', id);
-
-            const res = await fetch('process.php', { method: 'POST', body: fd });
-
-            const data = await res.json();
-
-            if(data.ok) {
-
-                await Swal.fire({ icon: 'success', title: 'Supprimée', timer: 1500, timerProgressBar: true, showConfirmButton: false });
-
-                location.reload();
-
-            }
-
-        }
-
-    });
-
-});
-
-
-// Nettoyage forcé
-
-montantInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9.]/g, ''); });
-
-numInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
-
-// PDF Preview Handler
-const pdfFilesInput = document.getElementById('pdfFilesInput');
-const pdfPreview = document.getElementById('pdfPreview');
-
-pdfFilesInput.addEventListener('change', function() {
-    pdfPreview.innerHTML = '';
-    
-    if (this.files.length === 0) {
-        return;
-    }
-    
-    const file = this.files[0];
-    const previewDiv = document.createElement('div');
-    
-    if (file.type !== 'application/pdf') {
-        previewDiv.className = 'alert alert-danger';
-        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
-    } else if (file.size > 10 * 1024 * 1024) {
-        previewDiv.className = 'alert alert-danger';
-        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Fichier trop volumineux (Max 10 MB)`;
-    } else {
-        previewDiv.className = 'alert alert-success';
-        previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
-    }
-    
-    pdfPreview.appendChild(previewDiv);
-});
-
-
-// banque/agence
-document.addEventListener('DOMContentLoaded', function() {
-    const banqueSelect = document.getElementById('banqueSelect');
-    const agenceSelect = document.getElementById('agenceSelect');
-    const agenceOptions = agenceSelect.querySelectorAll('option');
-
-    banqueSelect.addEventListener('change', function() {
-        const selectedBanqueId = this.value;
-        
-        // Reset agence selection
-        agenceSelect.value = "";
-        
-        let hasVisibleOptions = false;
-
-        agenceOptions.forEach(option => {
-            // Skip the placeholder option
-            if (option.value === "") return;
-
-            // Check if option belongs to selected bank
-            if (option.getAttribute('data-banque') === selectedBanqueId) {
-                option.style.display = 'block';
-                hasVisibleOptions = true;
-            } else {
-                option.style.display = 'none';
-            }
-        });
-
-        // Update placeholder text based on results
-        if (selectedBanqueId === "") {
-            agenceOptions[0].textContent = "Sélectionner une banque d'abord...";
-        } else if (!hasVisibleOptions) {
-            agenceOptions[0].textContent = "Aucune agence trouvée pour cette banque";
-        } else {
-            agenceOptions[0].textContent = "Sélectionner une agence...";
-        }
-    });
-
-    // Ouvrir le modal Amendement (utilise currentEditingGarantie défini dans activateEditMode)
-    const btnAmendement = document.getElementById('btnAjouterAmendement');
-    
-    if (btnAmendement) {
-        btnAmendement.addEventListener('click', function() {
-            if (!currentEditingGarantie) {
-                Swal.fire('Attention', 'Veuillez d\'abord sélectionner une garantie à modifier.', 'warning');
-                return;
-            }
-            
-            // Remplir les infos du modal
-            document.getElementById('amendementGarantieId').value = currentEditingGarantie.id;
-            document.getElementById('amendementGarantieInfo').textContent = 
-                `Garantie n° ${currentEditingGarantie.numGarantie} - ${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
-            document.getElementById('montantActuel').textContent = 
-                `${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
-            document.getElementById('dateExpirationActuelle').textContent = 
-                new Date(currentEditingGarantie.dateExpiration).toLocaleDateString('fr-FR');
-            
-            // Reset form
-            document.getElementById('amendementForm').reset();
-            document.getElementById('amendementGarantieId').value = currentEditingGarantie.id;
-            toggleAmendementFields();
-            
-            // Ouvrir le modal
-            const modal = new bootstrap.Modal(document.getElementById('amendementModal'));
-            modal.show();
-        });
-    }
-    
-    // Ouvrir le modal Authentification
-    const btnAuthentification = document.getElementById('btnAjouterAuthentification');
-    
-    if (btnAuthentification) {
-        btnAuthentification.addEventListener('click', function() {
-            if (!currentEditingGarantie) {
-                Swal.fire('Attention', 'Veuillez d\'abord sélectionner une garantie à modifier.', 'warning');
-                return;
-            }
-            
-            // Remplir les infos du modal
-            document.getElementById('authentificationGarantieId').value = currentEditingGarantie.id;
-            document.getElementById('authentificationGarantieInfo').textContent = 
-                `Garantie n° ${currentEditingGarantie.numGarantie} - ${Number(currentEditingGarantie.montant).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
-            
-            // Reset form
-            document.getElementById('authentificationForm').reset();
-            document.getElementById('authentificationGarantieId').value = currentEditingGarantie.id;
-            document.getElementById('authentificationPdfPreview').innerHTML = '';
-            
-            // Ouvrir le modal
-            const modal = new bootstrap.Modal(document.getElementById('authentificationModal'));
-            modal.show();
-        });
-    }
-
-    // Gestion dynamique des champs selon le type d'amendement
-    function toggleAmendementFields() {
-        const typeSelect = document.getElementById('typeAmendementSelect');
-        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
-        const code = selectedOption ? selectedOption.dataset.code : '';
-        
-        const montantGroup = document.getElementById('nouveauMontantGroup');
-        const dateGroup = document.getElementById('nouvelleDateGroup');
-        
-        montantGroup.style.display = 'none';
-        dateGroup.style.display = 'none';
-        
-        if (code === 'MONTANT') {
-            montantGroup.style.display = 'block';
-        } else if (code === 'DATE') {
-            dateGroup.style.display = 'block';
-        } else if (code === 'MIXTE') {
-            montantGroup.style.display = 'block';
-            dateGroup.style.display = 'block';
-        }
-    }
-
-    document.getElementById('typeAmendementSelect').addEventListener('change', toggleAmendementFields);
-
-    // PDF Preview Handler pour amendement
-    const amendmentPdfInput = document.getElementById('amendmentPdfInput');
-    const amendmentPdfPreview = document.getElementById('amendmentPdfPreview');
-    
-    amendmentPdfInput.addEventListener('change', function() {
-        amendmentPdfPreview.innerHTML = '';
-        
-        if (this.files.length === 0) {
-            return;
-        }
-        
-        const file = this.files[0];
-        const previewDiv = document.createElement('div');
-        
-        if (file.type !== 'application/pdf') {
-            previewDiv.className = 'alert alert-danger';
-            previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
-        } else {
-            previewDiv.className = 'alert alert-success';
-            previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
-        }
-        
-        amendmentPdfPreview.appendChild(previewDiv);
-    });
-
-    // Soumission du formulaire amendement
-    document.getElementById('amendementForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    // Reset visual errors
-    this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-    this.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-    
-    const fd = new FormData(this);
-    fd.append('form_type', 'amendement'); // Ensure this matches case 'amendement' in PHP
-
-    try {
-        const res = await fetch('process.php', { method: 'POST', body: fd });
-        const data = await res.json();
-        
-        if (data.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('amendementModal')).hide();
-            await Swal.fire({
-                icon: 'success',
-                title: 'Amendement enregistré',
-                timer: 1500,
-                showConfirmButton: false
-            });
-            location.reload();
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = this.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    // Your logic finds the very next div.invalid-feedback
-                    const feedback = input.nextElementSibling;
-                    if (feedback && feedback.classList.contains('invalid-feedback')) {
-                        feedback.textContent = msg;
-                    }
-                }
-            }
-            Swal.fire('Attention', 'Veuillez vérifier les informations saisies.', 'warning');
-        } else {
-            Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
-        }
-    } catch (err) {
-        Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
-    }
-});
-
-// PDF Preview Handler pour authentification
-const authentificationPdfInput = document.getElementById('authentificationPdfInput');
-const authentificationPdfPreview = document.getElementById('authentificationPdfPreview');
-
-authentificationPdfInput.addEventListener('change', function() {
-    authentificationPdfPreview.innerHTML = '';
-    
-    if (this.files.length === 0) {
-        return;
-    }
-    
-    const file = this.files[0];
-    const previewDiv = document.createElement('div');
-    
-    if (file.type !== 'application/pdf') {
-        previewDiv.className = 'alert alert-danger';
-        previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
-    } else {
-        previewDiv.className = 'alert alert-success';
-        previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
-    }
-    
-    authentificationPdfPreview.appendChild(previewDiv);
-});
-
-// Soumission du formulaire authentification
-document.getElementById('authentificationForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    // Reset visual errors
-    this.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-    this.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
-    
-    const fd = new FormData(this);
-    
-    try {
-        const res = await fetch('process.php', { method: 'POST', body: fd });
-        const data = await res.json();
-        
-        if (data.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('authentificationModal')).hide();
-            await Swal.fire({
-                icon: 'success',
-                title: 'Authentification enregistrée',
-                timer: 1500,
-                showConfirmButton: false,
-                timerProgressBar: true
-            });
-            location.reload();
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = this.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    const feedback = input.nextElementSibling;
-                    if (feedback && feedback.classList.contains('invalid-feedback')) {
-                        feedback.textContent = msg;
-                    }
-                }
-            }
-            Swal.fire('Attention', 'Veuillez vérifier les informations saisies.', 'warning');
-        } else {
-            Swal.fire('Erreur', data.message || 'Une erreur est survenue.', 'error');
-        }
-    } catch (err) {
-        Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
-    }
-});
-});
-
-// ===== VALIDATION INTEL INPUT (Blur AJAX) =====
-document.addEventListener('DOMContentLoaded', function() {
-    const numGarantieInput = document.getElementById('numGarantieInput');
-    const montantInput = document.getElementById('montantInput');
-    
-    // Force le numérique pur en temps réel (supprime lettres et tirets)
-    if (numGarantieInput) {
-        numGarantieInput.addEventListener('input', function() {
-            this.value = this.value.replace(/[^0-9]/g, '');
-        });
-    }
-    
-    if (montantInput) {
-        montantInput.addEventListener('input', function() {
-            this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-        });
-    }
-    
-    // Validation Blur (Format + Check Unique)
-    document.querySelectorAll('.intel-input').forEach(input => {
-        input.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const fb = this.nextElementSibling;
-            const pattern = new RegExp(this.dataset.pattern);
-            
-            // Correction ici : On utilise 'id' car l'ancien script attend $_REQUEST['id']
-            const idValue = document.getElementById('garantieId').value || 0;
-            
-            this.classList.remove('is-invalid', 'is-valid');
-            if (this.value === "") return;
-            
-            // 1. Vérif format (regex numérique définie dans le data-pattern)
-            if (!pattern.test(this.value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = this.dataset.msg;
-                return;
-            }
-            
-            // 2. Vérif unicité via AJAX
-            if (this.name === 'num_garantie') {
-                try {
-                    // On envoie bien &id= pour que l'ancien script puisse exclure la garantie actuelle en édition
-                    const response = await fetch(`unique_check.php?type=garantie&field=${this.name}&value=${encodeURIComponent(this.value)}&id=${idValue}`);
-                    const data = await response.json();
-                    
-                    if (data.exists) {
-                        this.classList.add('is-invalid');
-                        if (fb && fb.classList.contains('invalid-feedback')) {
-                            fb.textContent = 'Ce numéro existe déjà en base de données.';
-                        }
-                    } else {
-                        this.classList.add('is-valid');
-                    }
-                } catch (e) { 
-                    console.error("Erreur check unique:", e); 
-                }
-            } else {
-                this.classList.add('is-valid');
-            }
-        });
-    });
-});
-// ===== VALIDATION AMENDEMENT MODAL =====
-document.addEventListener('DOMContentLoaded', function() {
-    const amendementForm = document.getElementById('amendementForm');
-    if (!amendementForm) return;
-    
-    const numAmendementInput = amendementForm.querySelector('input[name="num_amendement"]');
-    
-    if (numAmendementInput) {
-        numAmendementInput.addEventListener('input', function() {
-            this.value = this.value.replace(/[^0-9]/g, '');
-        });
-        
-        numAmendementInput.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const fb = this.nextElementSibling;
-            const idValue = '';
-            
-            this.classList.remove('is-invalid', 'is-valid');
-            if (this.value === "") return;
-            
-            if (!/^[0-9]+$/.test(this.value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = 'Numérique uniquement.';
-                return;
-            }
-            
-            try {
-                const response = await fetch(`unique_check.php?type=amendement&field=num_amendement&value=${encodeURIComponent(this.value)}&id=${idValue}`);
-                const data = await response.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = 'Ce numéro existe déjà.';
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error(e); }
-        });
-    }
-});
-
-// ===== VALIDATION AUTHENTIFICATION MODAL =====
-document.addEventListener('DOMContentLoaded', function() {
-    const authentificationForm = document.getElementById('authentificationForm');
-    if (!authentificationForm) return;
-    
-    const numAuthInput = authentificationForm.querySelector('input[name="num_authentification"]');
-    
-    if (numAuthInput) {
-        numAuthInput.addEventListener('input', function() {
-            this.value = this.value.replace(/[^0-9]/g, '');
-        });
-
-        
-        numAuthInput.addEventListener('blur', async function() {
-            this.value = this.value.trim();
-            const fb = this.nextElementSibling;
-            const idValue = '';
-            
-            this.classList.remove('is-invalid', 'is-valid');
-            if (this.value === "") return;
-
-            if (!/^[0-9]+$/.test(this.value)) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = 'Numérique uniquement.';
-                return;
-            }
-            
-            try {
-                const response = await fetch(`unique_check.php?type=authentification&field=num_authentification&value=${encodeURIComponent(this.value)}&id=${idValue}`);
-                const data = await response.json();
-                if (data.exists) {
-                    this.classList.add('is-invalid');
-                    if (fb) fb.textContent = 'Ce numéro existe déjà.';
-                } else {
-                    this.classList.add('is-valid');
-                }
-            } catch (e) { console.error(e); }
-        });
-    }
-});
-
-</script>
-
-<!-- Modal Amendement -->
-<div class="modal fade" id="amendementModal" tabindex="-1" aria-labelledby="amendementModalLabel" aria-hidden="true">
+<div class="modal fade" id="amendementModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header text-white" style="background-color: #e67e22;">
-                <h5 class="modal-title" id="amendementModalLabel">
-                    <i class="fas fa-file-signature me-2"></i>Nouvel Amendement
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title"><i class="fas fa-file-signature me-2"></i>Nouvel Amendement</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="amendementForm" novalidate>
                 <div class="modal-body">
                     <input type="hidden" name="garantie_soumissionID" id="amendementGarantieId">
-                    
-                    <!-- Info Garantie sélectionnée -->
                     <div class="alert alert-info mb-4">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong id="amendementGarantieInfo"></strong>
+                        <i class="fas fa-info-circle me-2"></i><strong id="amendementGarantieInfo"></strong>
                     </div>
-                    
                     <div class="row g-3">
-                        <!-- Numéro d'amendement -->
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Numéro d'Amendement <span class="text-danger">*</span></label>
                             <input type="text" name="num_amendement" class="form-control intel-input" 
-                                   placeholder="Numéro unique" required
-                                   data-pattern="^[0-9]+$"
-                                   data-msg="Numérique uniquement.">
+                                   placeholder="Numéro unique" required data-pattern="^[0-9]+$" data-msg="Numérique uniquement.">
                             <div class="invalid-feedback"></div>
                         </div>
-                        
-                        <!-- Date d'amendement -->
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">Date d'Amendement</label>
-                            <input type="date" name="date_amendement" class="form-control" >
+                            <label class="form-label fw-bold">Date d'Amendement <span class="text-danger">*</span></label>
+                            <input type="date" name="date_amendement" class="form-control standard-input" required>
                             <div class="invalid-feedback"></div>
                         </div>
-                        
-                        <!-- Type d'amendement -->
                         <div class="col-md-12">
-                            <label class="form-label fw-bold">Type d'Amendement</label>
-                            <select name="type_amendementID" id="typeAmendementSelect" class="form-select" >
+                            <label class="form-label fw-bold">Type d'Amendement <span class="text-danger">*</span></label>
+                            <select name="type_amendementID" id="typeAmendementSelect" class="form-select standard-input" required>
                                 <option value="">Sélectionner le type...</option>
                                 <?php foreach ($types_amendement as $type): ?>
                                     <option value="<?php echo $type['id']; ?>" data-code="<?php echo $type['code']; ?>">
@@ -1019,99 +226,542 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="invalid-feedback"></div>
                         </div>
                         
-                        <!-- Nouveau Montant (conditionnel) -->
                         <div class="col-md-6" id="nouveauMontantGroup" style="display: none;">
-                            <label class="form-label fw-bold">Nouveau Montant</label>
-                            <input type="text" name="nouveau_montant" class="form-control" placeholder="0.00">
-                            <small class="text-muted">Montant actuel : <span id="montantActuel"></span></small>
+                            <label class="form-label fw-bold">Nouveau Montant <span class="text-danger">*</span></label>
+                            <input type="text" name="nouveau_montant" id="nouveauMontantInput" class="form-control intel-input" 
+                                   placeholder="0.00" data-pattern="^[0-9]+([.,][0-9]{1,2})?$" data-msg="Montant invalide">
+                            <small class="text-muted">Actuel : <span id="montantActuel"></span></small>
                             <div class="invalid-feedback"></div>
                         </div>
-                        
-                        <!-- Nouvelle Date d'Expiration (conditionnel) -->
                         <div class="col-md-6" id="nouvelleDateGroup" style="display: none;">
-                            <label class="form-label fw-bold">Nouvelle Date d'Expiration</label>
-                            <input type="date" name="nouvelle_date_expiration" class="form-control">
-                            <small class="text-muted">Date actuelle : <span id="dateExpirationActuelle"></span></small>
+                            <label class="form-label fw-bold">Nouvelle Date d'Expiration <span class="text-danger">*</span></label>
+                            <input type="date" name="nouvelle_date_expiration" id="nouvelleDateInput" class="form-control standard-input">
+                            <small class="text-muted">Actuelle : <span id="dateExpirationActuelle"></span></small>
                             <div class="invalid-feedback"></div>
                         </div>
                         
-                        <!-- Document PDF d'Amendement -->
                         <div class="col-md-12">
-                            <label class="form-label fw-bold">Document PDF d'Amendement (Optionnel)</label>
-                            <input type="file" name="amendment_pdf" id="amendmentPdfInput" class="form-control" accept=".pdf">
-                            <small class="text-muted d-block mt-2">
-                                <i class="fas fa-info-circle me-1"></i>Format PDF uniquement
-                            </small>
+                            <label class="form-label fw-bold">Document PDF <span class="text-danger">*</span></label>
+                            <input type="file" name="amendment_pdf" id="amendmentPdfInput" class="form-control standard-input" accept=".pdf" required>
+                            <div class="invalid-feedback">Ce document est obligatoire.</div>
+                            <div id="amendmentPdfPreview" class="mt-2"></div>
                         </div>
-                        <div class="col-md-12" id="amendmentPdfPreview"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-warning text-white">
-                        <i class="fas fa-save me-2"></i>Enregistrer l'Amendement
-                    </button>
+                    <button type="submit" class="btn btn-warning text-white"><i class="fas fa-save me-2"></i>Enregistrer</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Authentification -->
-<div class="modal fade" id="authentificationModal" tabindex="-1" aria-labelledby="authentificationModalLabel" aria-hidden="true">
+<div class="modal fade" id="authentificationModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header text-white" style="background-color: #486a70;">
-        <h5 class="modal-title" id="authentificationModalLabel">
-          <i class="fas fa-certificate me-2"></i>Nouvelle Authentification
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title"><i class="fas fa-certificate me-2"></i>Nouvelle Authentification</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <form id="authentificationForm" novalidate>
         <div class="modal-body">
           <input type="hidden" name="garantie_soumissionID" id="authentificationGarantieId">
           <input type="hidden" name="form_type" value="authentification">
-          
-          <!-- Info Garantie sélectionnée -->
           <div class="alert alert-info mb-4">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong id="authentificationGarantieInfo"></strong>
+            <i class="fas fa-info-circle me-2"></i><strong id="authentificationGarantieInfo"></strong>
           </div>
-          
           <div class="row g-3">
-            <!-- Numéro d'authentification -->
             <div class="col-md-6">
-              <label class="form-label fw-bold">Numéro d'Authentification <span class="text-danger">*</span></label>
+              <label class="form-label fw-bold">Numéro <span class="text-danger">*</span></label>
               <input type="text" name="num_authentification" class="form-control intel-input"
-                placeholder="Numéro unique" required
-                data-pattern="^[0-9A-Za-z\-]{3,}$"
-                data-msg="Alphanumérique (min. 3 caractères).">
+                placeholder="Numéro unique" required data-pattern="^[0-9A-Za-z\-]+$" data-msg="Alphanumérique uniquement.">
               <div class="invalid-feedback"></div>
             </div>
-            
-            <!-- Date d'authentification -->
             <div class="col-md-6">
-              <label class="form-label fw-bold">Date d'Authentification</label>
-              <input type="date" name="date_authentification" class="form-control" required>
+              <label class="form-label fw-bold">Date <span class="text-danger">*</span></label>
+              <input type="date" name="date_authentification" class="form-control standard-input" required>
               <div class="invalid-feedback"></div>
             </div>
-            
-            <!-- Fichier PDF -->
             <div class="col-md-12">
-              <label class="form-label fw-bold">Document PDF</label>
-              <input type="file" name="authentification_pdf" id="authentificationPdfInput" class="form-control" accept=".pdf" required>
+              <label class="form-label fw-bold">Document PDF <span class="text-danger">*</span></label>
+              <input type="file" name="authentification_pdf" id="authentificationPdfInput" class="form-control standard-input" accept=".pdf" required>
               <div class="invalid-feedback"></div>
-              <div id="authentificationPdfPreview"></div>
+              <div id="authentificationPdfPreview" class="mt-2"></div>
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save me-2"></i>Enregistrer Authentification
-          </button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Enregistrer</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('garantieForm');
+    
+    // --- VARIABLES STATUT (Injection SÉCURISÉE) ---
+    const STATUS_ACTIVE = <?= json_encode($status_active) ?>;
+    const STATUS_EXPIRED = <?= json_encode($status_expired) ?>;
+
+    // --- HELPER DATE LOCALE (YYYY-MM-DD) ---
+    function getTodayLocal() {
+        const now = new Date();
+        return now.getFullYear() + '-' + 
+               String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+               String(now.getDate()).padStart(2, '0');
+    }
+
+    // --- HELPER DEBOUNCE ---
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+
+    // --- HELPER: FIND FEEDBACK (ROBUST) ---
+    function getFeedbackElement(input) {
+        if (input.parentElement) {
+            const fb = input.parentElement.querySelector('.invalid-feedback');
+            if (fb) return fb;
+        }
+        let sibling = input.nextElementSibling;
+        while (sibling) {
+            if (sibling.classList.contains('invalid-feedback')) return sibling;
+            sibling = sibling.nextElementSibling;
+        }
+        return null;
+    }
+
+    // --- LOGIQUE BANQUE / AGENCE ---
+    const banqueSelect = document.getElementById('banqueSelect');
+    const agenceSelect = document.getElementById('agenceSelect');
+    
+    if (banqueSelect && agenceSelect) {
+        const agenceOptions = agenceSelect.querySelectorAll('option');
+        banqueSelect.addEventListener('change', function() {
+            const selectedBanqueId = this.value;
+            agenceSelect.value = "";
+            let hasVisibleOptions = false;
+            agenceOptions.forEach(option => {
+                if (option.value === "") return;
+                if (option.getAttribute('data-banque') === selectedBanqueId) {
+                    option.style.display = 'block';
+                    hasVisibleOptions = true;
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+            if (selectedBanqueId === "") agenceOptions[0].textContent = "Sélectionner une banque d'abord...";
+            else if (!hasVisibleOptions) agenceOptions[0].textContent = "Aucune agence trouvée pour cette banque";
+            else agenceOptions[0].textContent = "Sélectionner une agence...";
+        });
+    }
+
+    // --- VALIDATION FORMAT ---
+    function validateField(input) {
+        if (input.offsetParent === null) return true; 
+
+        const val = input.value.trim();
+        const fb = getFeedbackElement(input);
+        
+        input.classList.remove('is-invalid', 'is-valid');
+
+        if (input.hasAttribute('required') && val === "") {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = "Ce champ est obligatoire.";
+            return false;
+        }
+
+        if (val !== "" && input.dataset.pattern) {
+            const pattern = new RegExp(input.dataset.pattern);
+            if (!pattern.test(val)) {
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = input.dataset.msg || "Format invalide.";
+                return false;
+            }
+        }
+        
+        if (val !== "") input.classList.add('is-valid');
+        return true;
+    }
+
+    // --- CHECK UNICITÉ ---
+    async function checkUniqueness(input) {
+        if (!validateField(input)) return false; 
+        const val = input.value.trim();
+        if (val === "") return true;
+        
+        const fb = getFeedbackElement(input);
+        let checkType = '';
+        if (input.name === 'num_garantie') checkType = 'garantie';
+        else if (input.name === 'num_amendement') checkType = 'amendement';
+        else if (input.name === 'num_authentification') checkType = 'authentification';
+        else return true;
+        
+        const idValue = (checkType === 'garantie') ? (document.getElementById('garantieId').value || 0) : 0;
+        try {
+            const response = await fetch(`pages/unique_check.php?type=${checkType}&field=${input.name}&value=${encodeURIComponent(val)}&id=${idValue}`);
+            if (!response.ok) return true;
+            const data = await response.json(); 
+            if (data.exists) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = 'Cette valeur existe déjà.';
+                return false;
+            } else {
+                if (!input.classList.contains('is-invalid')) input.classList.add('is-valid'); 
+                return true;
+            }
+        } catch (e) { return true; }
+    }
+    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+
+    // --- CHECK DATE CONSTRAINTS ---
+    function checkDateConstraints(input, type) {
+        if(!currentEditingGarantie) return true;
+        
+        const val = input.value;
+        const fb = getFeedbackElement(input);
+        const today = getTodayLocal(); 
+        
+        input.classList.remove('is-invalid', 'is-valid');
+        if(!val) return true;
+
+        if (type === 'amendement_date') {
+            const min = currentEditingGarantie.dateEmission;
+            const max = currentEditingGarantie.dateExpirationActuelle;
+            
+            if (val > today) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = "La date ne peut pas être dans le futur.";
+                return false;
+            }
+            if (val < min) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = `La date ne peut pas être antérieure à l'émission (${new Date(min).toLocaleDateString('fr-FR')}).`;
+                return false;
+            }
+            if (val > max) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = `La date ne peut pas être postérieure à l'expiration actuelle (${new Date(max).toLocaleDateString('fr-FR')}).`;
+                return false;
+            }
+        } 
+        else if (type === 'new_expiration') {
+            const currentExp = currentEditingGarantie.dateExpirationActuelle;
+            if (val <= currentExp) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = `La nouvelle date doit être postérieure à l'expiration actuelle (${new Date(currentExp).toLocaleDateString('fr-FR')}).`;
+                return false;
+            }
+        }
+
+        input.classList.add('is-valid');
+        return true;
+    }
+
+    // --- MAIN FORM DATES
+    function checkMainDates() {
+        const dateE = document.getElementById('dateEInput');
+        const dateX = document.getElementById('dateXInput');
+        const fbE = getFeedbackElement(dateE);
+        const fbX = getFeedbackElement(dateX);
+        const vE = dateE.value;
+        const vX = dateX.value;
+        const today = getTodayLocal();
+
+        let isValid = true;
+        if (vE) {
+            if (vE > today) {
+                dateE.classList.add('is-invalid');
+                if(fbE) fbE.textContent = "Date futur impossible.";
+                isValid = false;
+            }
+        }
+        if (vE && vX && vX <= vE) {
+            dateX.classList.add('is-invalid');
+            if(fbX) fbX.textContent = "Expiration doit être après émission.";
+            isValid = false;
+        }
+        return isValid;
+    }
+
+    form.querySelectorAll('.intel-input').forEach(i => {
+        i.addEventListener('input', function() {
+            if(this.name === 'num_garantie') this.value = this.value.replace(/[^0-9]/g, '');
+            validateField(this);
+            if(this.name === 'num_garantie' && this.value) debouncedCheck(this);
+        });
+    });
+
+    form.querySelectorAll('.standard-input').forEach(el => {
+        ['change', 'input'].forEach(evt => {
+            el.addEventListener(evt, function() {
+                validateField(this);
+                if (this.type === 'date') checkMainDates();
+            });
+        });
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // --- FIX STATUT : REMPLISSAGE AUTOMATIQUE ---
+        const statutInput = document.getElementById('statutInput');
+        const garantieId = document.getElementById('garantieId').value;
+        if (!garantieId || garantieId === "") {
+            statutInput.value = STATUS_ACTIVE.id;
+        }
+
+        let isValid = true;
+        form.querySelectorAll('input, select').forEach(el => {
+            if (el.type === 'file' && document.getElementById('garantieId').value !== "") return;
+            if (!validateField(el)) isValid = false;
+        });
+        if (!checkMainDates()) isValid = false;
+        const numG = document.getElementById('numGarantieInput');
+        if(numG && !await checkUniqueness(numG)) isValid = false;
+
+        if (form.querySelectorAll('.is-invalid').length > 0 || !isValid) return;
+        
+        const fd = new FormData(form);
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (data.ok) {
+                location.href = 'index.php?page=liste-garanties';
+            } else {
+                alert(Object.values(data.errors).join('\n'));
+            }
+        } catch(e) {}
+    });
+
+    // --- MODAL LOGIC (AMENDEMENT & AUTH) ---
+    setupModalForm('amendementForm', 'amendementModal', 'amendement');
+    setupModalForm('authentificationForm', 'authentificationModal', 'authentification');
+
+    function setupModalForm(formId, modalId, type) {
+        const modalForm = document.getElementById(formId);
+        if(!modalForm) return;
+        
+        const mPdfInput = modalForm.querySelector('input[type="file"]');
+        const mPdfPrev = modalForm.querySelector('div[id$="Preview"]');
+        if(mPdfInput && mPdfPrev) mPdfInput.addEventListener('change', function() { handlePdfPreview(this, mPdfPrev); });
+
+        const numAmendInput = modalForm.querySelector('input[name="num_amendement"]');
+        if(numAmendInput) {
+            numAmendInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+                validateField(this);
+                if(this.value) debouncedCheck(this);
+            });
+        }
+
+        const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
+        if(type === 'amendement' && dateAmendInput) {
+            dateAmendInput.addEventListener('input', function() {
+                checkDateConstraints(this, 'amendement_date');
+            });
+        }
+
+        const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
+        if(type === 'amendement' && newExpInput) {
+            newExpInput.addEventListener('input', function() {
+                checkDateConstraints(this, 'new_expiration');
+            });
+        }
+
+        modalForm.querySelectorAll('.intel-input').forEach(i => {
+            if(i.name !== 'num_amendement') {
+                i.addEventListener('input', function() {
+                     if (this.name === 'num_authentification') this.value = this.value.replace(/[^0-9A-Za-z\-]/g, '');
+                     if (this.name === 'nouveau_montant') this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+                     validateField(this);
+                     if (this.value !== "" && !this.classList.contains('is-invalid')) debouncedCheck(this);
+                });
+            }
+            i.addEventListener('blur', function() { checkUniqueness(this); });
+        });
+
+        modalForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            let mValid = true;
+            const mUniqueInputs = [];
+            
+            this.querySelectorAll('input, select').forEach(i => {
+                if(!validateField(i)) mValid = false;
+                if(i.name === 'date_amendement' && type === 'amendement') {
+                    if(!checkDateConstraints(i, 'amendement_date')) mValid = false;
+                }
+                if(i.name === 'nouvelle_date_expiration' && type === 'amendement' && i.offsetParent !== null) {
+                    if(!checkDateConstraints(i, 'new_expiration')) mValid = false;
+                }
+                if(['num_amendement', 'num_authentification'].includes(i.name)) mUniqueInputs.push(i);
+            });
+            
+            for(const inp of mUniqueInputs) {
+                if(!inp.classList.contains('is-invalid')) {
+                    if(!await checkUniqueness(inp)) mValid = false;
+                } else {
+                    mValid = false; 
+                }
+            }
+
+            if(this.querySelectorAll('.is-invalid').length > 0 || !mValid) return; 
+            
+            const fd = new FormData(this);
+            fd.append('form_type', type);
+
+            try {
+                const res = await fetch('process.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.ok) {
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+                    location.reload();
+                } else if (data.errors) {
+                     Object.values(data.errors).forEach(msg => Swal.fire('Erreur', msg, 'error'));
+                }
+            } catch(e) { Swal.fire('Erreur', 'Erreur serveur', 'error'); }
+        });
+    }
+
+    const typeAmend = document.getElementById('typeAmendementSelect');
+    if(typeAmend) {
+        typeAmend.addEventListener('change', function() {
+            const code = this.options[this.selectedIndex].dataset.code;
+            const mGroup = document.getElementById('nouveauMontantGroup');
+            const dGroup = document.getElementById('nouvelleDateGroup');
+            const mInput = document.getElementById('nouveauMontantInput');
+            const dInput = document.getElementById('nouvelleDateInput');
+            
+            mGroup.style.display = 'none';
+            dGroup.style.display = 'none';
+            mInput.removeAttribute('required');
+            dInput.removeAttribute('required');
+            mInput.classList.remove('is-invalid', 'is-valid');
+            dInput.classList.remove('is-invalid', 'is-valid');
+            
+            if (code === 'MONTANT') {
+                mGroup.style.display = 'block';
+                mInput.setAttribute('required', 'required');
+            } else if (code === 'DATE') {
+                dGroup.style.display = 'block';
+                dInput.setAttribute('required', 'required');
+            } else if (code === 'MIXTE') {
+                mGroup.style.display = 'block';
+                dGroup.style.display = 'block';
+                mInput.setAttribute('required', 'required');
+                dInput.setAttribute('required', 'required');
+            }
+        });
+    }
+
+    function handlePdfPreview(input, container) {
+        container.innerHTML = '';
+        if (input.files.length === 0) return;
+        const file = input.files[0];
+        const previewDiv = document.createElement('div');
+        if (file.type !== 'application/pdf') {
+            previewDiv.className = 'alert alert-danger';
+            previewDiv.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>Format non accepté (PDF uniquement)`;
+        } else {
+            previewDiv.className = 'alert alert-success';
+            previewDiv.innerHTML = `<i class="fas fa-file-pdf text-danger me-2"></i><strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`;
+        }
+        container.appendChild(previewDiv);
+    }
+});
+
+// --- EDIT MODE HANDLERS ---
+let currentEditingGarantie = null;
+
+function activateEditMode(g) {
+    currentEditingGarantie = {
+        id: g.id,
+        numGarantie: g.num_garantie,
+        montant: g.montant_garantie,
+        deviseCode: g.devise_code || '', 
+        dateExpiration: g.date_expiration,
+        dateEmission: g.date_emission,
+        authCount: g.auth_count,
+        montantActuel: g.montant_actuel || g.montant_garantie,
+        dateExpirationActuelle: g.date_expiration_actuelle || g.date_expiration
+    };
+
+    document.getElementById('cardHeaderTitle').textContent = "Modifier la Garantie n° " + g.num_garantie;
+    document.getElementById('formType').value = 'update_garantie';
+    document.getElementById('garantieId').value = g.id;
+
+    // --- FIX STATUT : RÉCUPÉRATION DU STATUT EXISTANT ---
+    document.getElementById('statutInput').value = g.statutID;
+
+    document.getElementById('numGarantieInput').value = g.num_garantie;
+    document.getElementById('montantInput').value = g.montant_garantie;
+    document.getElementById('dateEInput').value = g.date_emission;
+    document.getElementById('dateXInput').value = g.date_expiration;
+    document.getElementById('fournisseurSelect').value = g.soumissionnaireID;
+    document.getElementById('deviseSelect').value = g.deviseID;
+    document.getElementById('aoSelect').value = g.appel_offreID;
+    document.getElementById('structureSelect').value = g.structureID;
+
+    document.getElementById('pdfFilesInput').removeAttribute('required');
+
+    const agenceSelect = document.getElementById('agenceSelect');
+    const banqueSelect = document.getElementById('banqueSelect');
+    const agenceOption = agenceSelect.querySelector(`option[value="${g.agenceID}"]`);
+    if (agenceOption) {
+        banqueSelect.value = agenceOption.getAttribute('data-banque');
+        banqueSelect.dispatchEvent(new Event('change'));
+        agenceSelect.value = g.agenceID;
+    }
+    
+    document.querySelectorAll('.is-invalid, .is-valid').forEach(el => el.classList.remove('is-invalid', 'is-valid'));
+
+    document.getElementById('btnAjouterAmendement').style.display = 'inline-block';
+    const btnAuth = document.getElementById('btnAjouterAuthentification');
+    btnAuth.style.display = (g.auth_count > 0) ? 'none' : 'inline-block';
+
+    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-sync me-2"></i>Mettre à jour';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+<?php if ($edit_data): ?> 
+document.addEventListener('DOMContentLoaded', () => activateEditMode(<?= json_encode($edit_data) ?>)); 
+<?php endif; ?>
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', function() { activateEditMode(JSON.parse(this.dataset.garantie)); });
+});
+
+document.getElementById('btnAjouterAmendement')?.addEventListener('click', function() {
+    if (!currentEditingGarantie) return;
+    document.getElementById('amendementGarantieId').value = currentEditingGarantie.id;
+    document.getElementById('amendementGarantieInfo').textContent = `Garantie n° ${currentEditingGarantie.numGarantie}`;
+    document.getElementById('montantActuel').textContent = `${Number(currentEditingGarantie.montantActuel).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}`;
+    document.getElementById('dateExpirationActuelle').textContent = new Date(currentEditingGarantie.dateExpirationActuelle).toLocaleDateString('fr-FR');
+    
+    const form = document.getElementById('amendementForm');
+    form.reset();
+    form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
+    document.getElementById('typeAmendementSelect').dispatchEvent(new Event('change'));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('amendementModal')).show();
+});
+
+document.getElementById('btnAjouterAuthentification')?.addEventListener('click', function() {
+    if (!currentEditingGarantie) return;
+    document.getElementById('authentificationGarantieId').value = currentEditingGarantie.id;
+    document.getElementById('authentificationGarantieInfo').textContent = `Garantie n° ${currentEditingGarantie.numGarantie}`;
+    const form = document.getElementById('authentificationForm');
+    form.reset();
+    form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('authentificationModal')).show();
+});
+</script>

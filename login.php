@@ -26,7 +26,6 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             padding-top: 0;
         }
         
-        /* Removed background and fixed positioning from top bar */
         .top-bar {
             display: flex;
             align-items: center;
@@ -131,12 +130,40 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             box-shadow: 0 6px 20px rgba(105, 46, 37, 0.4);
         }
         
-        
-        
-       
         .alert {
             border-radius: 8px;
             border: none;
+        }
+
+        /* Styles de validation */
+        .is-invalid {
+            border-color: #dc3545 !important;
+            padding-right: calc(1.5em + 0.75rem);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5zM6 8.2a.6.6 0 110-1.2.6.6 0 010 1.2z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right calc(0.375em + 0.1875rem) center;
+            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+        }
+
+        .is-valid {
+            border-color: #198754 !important;
+            padding-right: calc(1.5em + 0.75rem);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right calc(0.375em + 0.1875rem) center;
+            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+        }
+
+        .invalid-feedback {
+            display: none;
+            width: 100%;
+            margin-top: 0.25rem;
+            font-size: 0.875em;
+            color: #dc3545;
+        }
+        
+        .is-invalid ~ .invalid-feedback {
+            display: block;
         }
         
         @media (max-width: 768px) {
@@ -175,12 +202,16 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                 }
                 ?>
                 
-                <form action="authenticate.php" method="POST">
+                <form action="authenticate.php" method="POST" id="loginForm" novalidate>
                     <div class="mb-3">
                         <label for="username" class="form-label">Nom d'utilisateur</label>
                         <div class="input-group">
                             <i class="fas fa-user input-icon"></i>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="Entrez votre nom d'utilisateur" required>
+                            <input type="text" class="form-control intel-input" id="username" name="username" 
+                                   placeholder="Entrez votre nom d'utilisateur" required
+                                   data-pattern="^[a-zA-Z0-9._\-]{1,}$"
+                                   data-msg="Ce champ est requis (pas d'espaces).">
+                            <div class="invalid-feedback"></div>
                         </div>
                     </div>
                     
@@ -188,12 +219,13 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                         <label for="password" class="form-label">Mot de passe</label>
                         <div class="input-group">
                             <i class="fas fa-lock input-icon"></i>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Entrez votre mot de passe" required>
+                            <input type="password" class="form-control intel-input" id="password" name="password" 
+                                   placeholder="Entrez votre mot de passe" required
+                                   data-pattern=".{1,}"
+                                   data-msg="Le mot de passe est requis.">
+                            <div class="invalid-feedback"></div>
                         </div>
                     </div>
-                    
-                   
-                      
                     
                     <button type="submit" class="btn btn-login">
                         <i class="fas fa-sign-in-alt"></i> Se connecter
@@ -205,8 +237,9 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<script>
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-hide server alerts
             setTimeout(function() {
                 const alerts = document.querySelectorAll('.alert');
                 alerts.forEach(function(alert) {
@@ -217,10 +250,78 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
                     }, 600);
                 });
             }, 5000);
+
+            // Validation logic
+            const form = document.getElementById('loginForm');
+            
+            function validateField(input) {
+                const val = input.value.trim();
+                // Find feedback relative to input-group
+                const fb = input.closest('.input-group').querySelector('.invalid-feedback');
+                
+                input.classList.remove('is-invalid', 'is-valid');
+                
+                if (val === "") {
+                    // For login, we can optionally show invalid immediately if field is empty after user interaction
+                    // but usually we wait for Blur or Submit. 
+                    // To follow "show as I type" logic, if user clears it, show error.
+                    return false; 
+                }
+
+                const pattern = new RegExp(input.dataset.pattern);
+                if (!pattern.test(val)) {
+                    input.classList.add('is-invalid');
+                    if (fb) fb.textContent = input.dataset.msg;
+                    return false;
+                }
+                
+                input.classList.add('is-valid');
+                return true;
+            }
+
+            // Real-time cleanup & validation
+            document.getElementById('username').addEventListener('input', function() {
+                this.value = this.value.replace(/\s/g, ''); // No spaces in username
+                validateField(this);
+            });
+            
+            document.getElementById('password').addEventListener('input', function() {
+                validateField(this);
+            });
+
+            // Blur validation
+            document.querySelectorAll('.intel-input').forEach(input => {
+                input.addEventListener('blur', function() {
+                    if (this.value === "") {
+                        this.classList.add('is-invalid');
+                        const fb = this.closest('.input-group').querySelector('.invalid-feedback');
+                        if (fb) fb.textContent = this.dataset.msg;
+                    } else {
+                        validateField(this);
+                    }
+                });
+            });
+
+            // Submit validation
+            form.addEventListener('submit', function(e) {
+                let isValid = true;
+                form.querySelectorAll('.intel-input').forEach(input => {
+                    if (input.value.trim() === "") {
+                        input.classList.add('is-invalid');
+                        const fb = input.closest('.input-group').querySelector('.invalid-feedback');
+                        if (fb) fb.textContent = input.dataset.msg;
+                        isValid = false;
+                    } else if (!validateField(input)) {
+                        isValid = false;
+                    }
+                });
+                
+                if (!isValid) {
+                    e.preventDefault();
+                }
+            });
         });
     </script>
-    
-
-
 </body>
 </html>
+
