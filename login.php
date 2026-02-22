@@ -145,26 +145,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
         }
 
-        .is-valid {
-            border-color: #198754 !important;
-            padding-right: calc(1.5em + 0.75rem);
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right calc(0.375em + 0.1875rem) center;
-            background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
-        }
-
-        .invalid-feedback {
-            display: none;
-            width: 100%;
-            margin-top: 0.25rem;
-            font-size: 0.875em;
-            color: #dc3545;
-        }
-        
-        .is-invalid ~ .invalid-feedback {
-            display: block;
-        }
+      
         
         @media (max-width: 768px) {
             .top-bar img {
@@ -254,31 +235,7 @@ if (isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true) {
             // Validation logic
             const form = document.getElementById('loginForm');
             
-            function validateField(input) {
-                const val = input.value.trim();
-                // Find feedback relative to input-group
-                const fb = input.closest('.input-group').querySelector('.invalid-feedback');
-                
-                input.classList.remove('is-invalid', 'is-valid');
-                
-                if (val === "") {
-                    // For login, we can optionally show invalid immediately if field is empty after user interaction
-                    // but usually we wait for Blur or Submit. 
-                    // To follow "show as I type" logic, if user clears it, show error.
-                    return false; 
-                }
-
-                const pattern = new RegExp(input.dataset.pattern);
-                if (!pattern.test(val)) {
-                    input.classList.add('is-invalid');
-                    if (fb) fb.textContent = input.dataset.msg;
-                    return false;
-                }
-                
-                input.classList.add('is-valid');
-                return true;
-            }
-
+          
             // Real-time cleanup & validation
             document.getElementById('username').addEventListener('input', function() {
                 this.value = this.value.replace(/\s/g, ''); // No spaces in username

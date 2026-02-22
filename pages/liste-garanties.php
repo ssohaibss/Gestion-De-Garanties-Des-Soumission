@@ -53,75 +53,64 @@ $garanties = $result->fetchAll(PDO::FETCH_ASSOC);
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
-                    <tr>
+                     <tr>
                         <th class="ps-3">N° Garantie</th>
                         <th>Soumissionnaire</th>
                         <th>Appel d'Offre</th>
-                        <th>Expiration</th>
+                        <th>Statut</th> <th>Expiration</th>
                         <th class="text-end">Montant</th>
                         <th class="text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($garanties as $row): ?>
-                    <tr>
-                        <td class="ps-3">
-    <span class="fw-bold text-dark"><?php echo htmlspecialchars($row['num_garantie']); ?></span>
-    <?php if ($row['nb_auth'] > 0): ?>
-        <i class="fas fa-check-circle text-primary ms-1" title="Authentifiée"></i>
-    <?php endif; ?>
-    <br>
-    <small class="text-muted"><?php echo htmlspecialchars($row['agence_nom']); ?></small>
-</td>
-                        <td><?php echo htmlspecialchars($row['nom_entreprise']); ?></td>
-                        <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($row['num_app_offre'] ?? 'N/A'); ?></span></td>
-                        <td>
-                            <?php 
-                                $badgeClass = ($row['jours_restants'] > 0) ? 'bg-success' : 'bg-danger';
-                                $dateExp = date('d/m/Y', strtotime($row['date_expiration']));
-                            ?>
-                            <span class="badge <?php echo $badgeClass; ?>"><?php echo $dateExp; ?></span>
-                            
-                        </td>
-                        <td class="text-end">
-                            <?php $montant_total = $row['montant_garantie'] + $row['total_amendments_montant']; ?>
-                            <div class="fw-bold text-success">
-                                <?php echo number_format($montant_total, 2, ',', ' '); ?> 
-                                <small><?php echo $row['devise_code']; ?></small>
-                            </div>
-                            <?php if ($row['total_amendments_montant'] > 0): ?>
-                                <small class="text-muted d-block">
-                                    (Original: <?php echo number_format($row['montant_garantie'], 2, ',', ' '); ?>)
-                                </small>
-                            <?php endif; ?>
-                        </td>
-                        <td class="text-center">
-    <div class="btn-group shadow-sm">
-        <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" 
-           class="btn btn-sm text-white" 
-           style="background-color: #486a70;" 
-           title="Détails">
-            <i class="fas fa-eye"></i>
-        </a>
+                     </tr>
+            </thead>
+            <tbody>
+    <?php foreach ($garanties as $row): ?>
+    <tr>
+        <td class="ps-3">
+            <span class="fw-bold text-dark"><?php echo htmlspecialchars($row['num_garantie']); ?></span>
+            <?php if ($row['nb_auth'] > 0): ?>
+                <i class="fas fa-check-circle text-primary ms-1" title="Authentifiée"></i>
+            <?php endif; ?>
+            <br>
+            <small class="text-muted"><?php echo htmlspecialchars($row['agence_nom']); ?></small>
+        </td>
+        <td><?php echo htmlspecialchars($row['nom_entreprise']); ?></td>
+        <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($row['num_app_offre'] ?? 'N/A'); ?></span></td>
+        
+        <td>
+            <?php 
+            $stLib = $row['statut_libelle'];
+            $stClass = 'bg-secondary';
+            if(stripos($stLib, 'Activ') !== false) $stClass = 'bg-success';
+            elseif(stripos($stLib, 'Expir') !== false) $stClass = 'bg-danger';
+            elseif(stripos($stLib, 'Libér') !== false) $stClass = 'bg-info text-dark';
+            ?>
+            <span class="badge <?php echo $stClass; ?>"><?php echo htmlspecialchars($stLib); ?></span>
+        </td>
 
-        <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" 
-           class="btn btn-sm text-white" 
-           style="background-color: #486a70; border-left: 1px solid rgba(255,255,255,0.3);" 
-           title="Modifier">
-            <i class="fas fa-pencil-alt"></i>
-        </a>
-
-        <button type="button" class="btn btn-sm btn-danger delete-garantie" 
-                data-id="<?php echo $row['id']; ?>" 
-                data-num="<?php echo htmlspecialchars($row['num_garantie']); ?>"
-                title="Supprimer">
-            <i class="fas fa-trash"></i>
-        </button>
-    </div>
-</td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
+        <td>
+            <?php 
+                $badgeClass = ($row['jours_restants'] > 0) ? 'bg-success' : 'bg-danger';
+                $dateExp = date('d/m/Y', strtotime($row['date_expiration']));
+            ?>
+            <span class="badge <?php echo $badgeClass; ?>"><?php echo $dateExp; ?></span>
+        </td>
+        <td class="text-end">
+            <?php $montant_total = $row['montant_garantie'] + $row['total_amendments_montant']; ?>
+            <div class="fw-bold text-success">
+                <?php echo number_format($montant_total, 2, ',', ' '); ?> 
+                <small><?php echo $row['devise_code']; ?></small>
+            </div>
+        </td>
+        <td class="text-center">
+            <div class="btn-group shadow-sm">
+                <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" class="btn btn-sm text-white" style="background-color: #486a70;"><i class="fas fa-eye"></i></a>
+                <a href="index.php?page=garantie&edit=<?php echo $row['id']; ?>" class="btn btn-sm text-white" style="background-color: #486a70; border-left: 1px solid rgba(255,255,255,0.3);"><i class="fas fa-pencil-alt"></i></a>
+                <button type="button" class="btn btn-sm btn-danger delete-garantie" data-id="<?php echo $row['id']; ?>" data-num="<?php echo htmlspecialchars($row['num_garantie']); ?>"><i class="fas fa-trash"></i></button>
+            </div>
+        </td>
+    </tr>
+    <?php endforeach; ?>
+</tbody>
             </table>
         </div>
         <?php else: ?>

@@ -31,7 +31,8 @@ if (isset($_GET['edit'])) {
     $sql = "SELECT g.*, 
             (SELECT COUNT(*) FROM authentification a WHERE a.garantie_soumissionID = g.id) as auth_count,
             (g.montant_garantie + COALESCE((SELECT SUM(nouveau_montant) FROM amendement a LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id WHERE a.garantie_soumissionID = g.id AND ta.code IN ('MONTANT', 'MIXTE')), 0)) as montant_actuel,
-            COALESCE((SELECT nouvelle_date_expiration FROM amendement a LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id WHERE a.garantie_soumissionID = g.id AND ta.code IN ('DATE', 'MIXTE') AND a.nouvelle_date_expiration IS NOT NULL ORDER BY a.date_amendement DESC, a.id DESC LIMIT 1), g.date_expiration) as date_expiration_actuelle
+            COALESCE((SELECT nouvelle_date_expiration FROM amendement a LEFT JOIN type_amendement ta ON a.type_amendementID = ta.id WHERE a.garantie_soumissionID = g.id AND ta.code IN ('DATE', 'MIXTE') AND a.nouvelle_date_expiration IS NOT NULL ORDER BY a.date_amendement DESC, a.id DESC LIMIT 1), g.date_expiration) as date_expiration_actuelle,
+            COALESCE((SELECT SUM(montant_libere) FROM liberation l WHERE l.garantie_soumissionID = g.id), 0) as total_libere
             FROM garantie_soumission g WHERE g.id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$_GET['edit']]);
@@ -40,6 +41,8 @@ if (isset($_GET['edit'])) {
 
 // 4. Types d'amendement
 $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+// 5. Types de libération
+$types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="content-header mb-4">
@@ -51,6 +54,9 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
             </button>
             <button type="button" id="btnAjouterAuthentification" class="btn btn-primary" style="display: none;">
                 <i class="fas fa-certificate me-2"></i>Ajouter Authentification
+            </button>
+            <button type="button" id="btnAjouterLiberation" class="btn btn-success" style="display: none;">
+                <i class="fas fa-unlock-alt me-2"></i>Ajouter Libération
             </button>
         </div>
     </div>
@@ -299,7 +305,69 @@ $types_amendement = $pdo->query("SELECT id, code, libelle FROM type_amendement O
     </div>
   </div>
 </div>
+<div class="modal fade" id="liberationModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header text-white" style="background-color: #27ae60;">
+        <h5 class="modal-title"><i class="fas fa-unlock-alt me-2"></i>Nouvelle Libération</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="liberationForm" novalidate>
+        <div class="modal-body">
+          <input type="hidden" name="garantie_soumissionID" id="liberationGarantieId">
+          <input type="hidden" name="form_type" value="liberation">
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i><strong id="liberationGarantieInfo"></strong>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Numéro <span class="text-danger">*</span></label>
+              <input type="text" name="num_liberation" class="form-control intel-input"
+                placeholder="Numéro unique" required data-pattern="^[0-9]+$" data-msg="Chiffres uniquement.">
+              <div class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Date <span class="text-danger">*</span></label>
+              <input type="date" name="date_liberation" class="form-control standard-input" required>
+              <div class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Type de Libération <span class="text-danger">*</span></label>
+              <select name="type_liberationID" id="typeLiberationSelect" class="form-select standard-input" required>
+                  <option value="">Sélectionner...</option>
+                  <?php foreach ($types_liberation as $type): ?>
+                      <option value="<?php echo $type['id']; ?>" data-code="<?php echo $type['code']; ?>">
+                          <?php echo htmlspecialchars($type['libelle']); ?>
+                      </option>
+                  <?php endforeach; ?>
+              </select>
+              <div class="invalid-feedback"></div>
+            </div>
+            
+            <div class="col-md-12" id="montantLibereGroup" style="display: none;">
+                <label class="form-label fw-bold">Montant Libéré <span class="text-danger">*</span></label>
+                <input type="text" name="montant_libere" id="montantLibereInput" class="form-control intel-input" 
+                       placeholder="0.00" data-pattern="^[0-9]+([.,][0-9]{1,2})?$" data-msg="Montant invalide">
+                <small class="text-muted">Garantie Actuelle : <span id="montantMaxLibere"></span></small>
+                <div class="invalid-feedback"></div>
+            </div>
 
+            <div class="col-md-12">
+              <label class="form-label fw-bold">Document PDF <span class="text-danger">*</span></label>
+              <input type="file" name="liberation_pdf" id="liberationPdfInput" class="form-control standard-input" accept=".pdf" required>
+              <div class="invalid-feedback"></div>
+              <div id="liberationPdfPreview" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-success"><i class="fas fa-save me-2"></i>Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('garantieForm');
@@ -404,6 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (input.name === 'num_garantie') checkType = 'garantie';
         else if (input.name === 'num_amendement') checkType = 'amendement';
         else if (input.name === 'num_authentification') checkType = 'authentification';
+        else if (input.name === 'num_liberation') checkType = 'liberation';
         else return true;
         
         const idValue = (checkType === 'garantie') ? (document.getElementById('garantieId').value || 0) : 0;
@@ -533,13 +602,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (form.querySelectorAll('.is-invalid').length > 0 || !isValid) return;
         
         const fd = new FormData(form);
-        try {
+       try {
             const res = await fetch('process.php', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.ok) {
                 location.href = 'index.php?page=liste-garanties';
-            } else {
-                alert(Object.values(data.errors).join('\n'));
+            } else if (data.errors) {
+                // Associer chaque erreur à son champ respectif
+                for (const [fieldName, errorMsg] of Object.entries(data.errors)) {
+                    const input = form.querySelector(`[name="${fieldName}"]`);
+                    if (input) {
+                        input.classList.add('is-invalid');
+                        const fb = getFeedbackElement(input);
+                        if (fb) fb.textContent = errorMsg;
+                    } else {
+                        alert(errorMsg); // Si le champ n'est pas trouvé
+                    }
+                }
+            } else if (data.message) {
+                alert(data.message);
             }
         } catch(e) {}
     });
@@ -547,6 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- MODAL LOGIC (AMENDEMENT & AUTH) ---
     setupModalForm('amendementForm', 'amendementModal', 'amendement');
     setupModalForm('authentificationForm', 'authentificationModal', 'authentification');
+    setupModalForm('liberationForm', 'liberationModal', 'liberation');
 
     function setupModalForm(formId, modalId, type) {
         const modalForm = document.getElementById(formId);
@@ -627,7 +709,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
                     location.reload();
                 } else if (data.errors) {
-                     Object.values(data.errors).forEach(msg => Swal.fire('Erreur', msg, 'error'));
+                    // Associer chaque erreur à son champ respectif dans le modal
+                    for (const [fieldName, errorMsg] of Object.entries(data.errors)) {
+                        const input = modalForm.querySelector(`[name="${fieldName}"]`);
+                        if (input) {
+                            input.classList.add('is-invalid');
+                            const fb = getFeedbackElement(input);
+                            if (fb) fb.textContent = errorMsg;
+                        } else {
+                            Swal.fire('Erreur', errorMsg, 'error');
+                        }
+                    }
+                } else if (data.message) {
+                    Swal.fire('Erreur', data.message, 'error');
                 }
             } catch(e) { Swal.fire('Erreur', 'Erreur serveur', 'error'); }
         });
@@ -663,6 +757,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    const typeLibSelect = document.getElementById('typeLiberationSelect');
+    if(typeLibSelect) {
+    typeLibSelect.addEventListener('change', function() {
+        const code = this.options[this.selectedIndex]?.dataset?.code;
+        const mGroup = document.getElementById('montantLibereGroup');
+        const mInput = document.getElementById('montantLibereInput');
+        
+        mGroup.style.display = 'none';
+        mInput.removeAttribute('required');
+        mInput.classList.remove('is-invalid', 'is-valid');
+        mInput.removeAttribute('readonly');
+        
+        if (code === 'PARTIELLE') {
+            mGroup.style.display = 'block';
+            mInput.setAttribute('required', 'required');
+            mInput.value = '';
+     } else if (code === 'TOTALE') {
+                mGroup.style.display = 'block';
+                mInput.setAttribute('required', 'required');
+                mInput.setAttribute('readonly', 'readonly');
+                // Auto-remplir avec le reste à libérer (nouveau comportement)
+                mInput.value = currentEditingGarantie ? currentEditingGarantie.resteALiberer : '';
+            }
+    });
+}
+const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
+    if (libDateInput) {
+        libDateInput.addEventListener('change', function() {
+            const today = new Date().toISOString().split('T')[0];
+            const val = this.value;
+            const fb = this.nextElementSibling; // invalid-feedback
+
+            this.classList.remove('is-invalid', 'is-valid');
+            
+            if (val > today) {
+                this.classList.add('is-invalid');
+                if(fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
+                this.value = ""; // Optionnel : efface la date invalide
+            } else {
+                this.classList.add('is-valid');
+            }
+        });
+    }
 
     function handlePdfPreview(input, container) {
         container.innerHTML = '';
@@ -684,6 +821,9 @@ document.addEventListener('DOMContentLoaded', function() {
 let currentEditingGarantie = null;
 
 function activateEditMode(g) {
+    const totalLibere = g.total_libere ? parseFloat(g.total_libere) : 0;
+    const montantAct = g.montant_actuel ? parseFloat(g.montant_actuel) : parseFloat(g.montant_garantie);
+
     currentEditingGarantie = {
         id: g.id,
         numGarantie: g.num_garantie,
@@ -692,8 +832,10 @@ function activateEditMode(g) {
         dateExpiration: g.date_expiration,
         dateEmission: g.date_emission,
         authCount: g.auth_count,
-        montantActuel: g.montant_actuel || g.montant_garantie,
-        dateExpirationActuelle: g.date_expiration_actuelle || g.date_expiration
+        montantActuel: montantAct,
+        dateExpirationActuelle: g.date_expiration_actuelle || g.date_expiration,
+        totalLibere: totalLibere,
+        resteALiberer: montantAct - totalLibere
     };
 
     document.getElementById('cardHeaderTitle').textContent = "Modifier la Garantie n° " + g.num_garantie;
@@ -713,6 +855,21 @@ function activateEditMode(g) {
     document.getElementById('structureSelect').value = g.structureID;
 
     document.getElementById('pdfFilesInput').removeAttribute('required');
+    // Dans activateEditMode(g), en dessous de btnAuth.style.display :
+    document.getElementById('btnAjouterLiberation').style.display = 'inline-block';
+
+// En bas, parmi les évènements de boutons :
+    document.getElementById('btnAjouterLiberation')?.addEventListener('click', function() {
+    if (!currentEditingGarantie) return;
+    document.getElementById('liberationGarantieId').value = currentEditingGarantie.id;
+    document.getElementById('liberationGarantieInfo').textContent = `Garantie n° ${currentEditingGarantie.numGarantie}`;
+   document.getElementById('montantMaxLibere').textContent = `${Number(currentEditingGarantie.resteALiberer).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode} (Reste à libérer)`;
+    const form = document.getElementById('liberationForm');
+    form.reset();
+    form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
+    document.getElementById('typeLiberationSelect').dispatchEvent(new Event('change'));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('liberationModal')).show();
+});
 
     const agenceSelect = document.getElementById('agenceSelect');
     const banqueSelect = document.getElementById('banqueSelect');

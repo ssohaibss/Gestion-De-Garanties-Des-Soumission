@@ -653,8 +653,26 @@ case 'update_garantie':
     if (empty($aoID)) $errors['appel_offreID'] = "L'appel d'offre est obligatoire.";
     if (empty($montant) || $montant <= 0) $errors['montant_garantie'] = "Montant valide requis.";
  
-    if (!$id && (!isset($_FILES['pdf_files']) || $_FILES['pdf_files']['error'] === UPLOAD_ERR_NO_FILE)) {
-    $errors['pdf_files'] = "Le document PDF est requis pour toute nouvelle garantie.";
+   if (!$id && (!isset($_FILES['pdf_files']) || $_FILES['pdf_files']['error'] === UPLOAD_ERR_NO_FILE)) {
+        $errors['pdf_files'] = "Le document PDF est requis pour toute nouvelle garantie.";
+    } elseif (isset($_FILES['pdf_files']) && $_FILES['pdf_files']['error'] === UPLOAD_ERR_OK) {
+        $filename = $_FILES['pdf_files']['name'];
+        
+        // On vérifie si ce nom de fichier existe déjà dans la base
+        $sqlCheckDoc = "SELECT id FROM document WHERE nom_document = ?";
+        $paramsCheckDoc = [$filename];
+        
+        // Si c'est une modification, on autorise le même nom SEULEMENT si c'est déjà le document de cette même garantie
+        if ($id) {
+            $sqlCheckDoc .= " AND garantie_soumissionID != ?";
+            $paramsCheckDoc[] = $id;
+        }
+        
+        $checkDoc = $pdo->prepare($sqlCheckDoc);
+        $checkDoc->execute($paramsCheckDoc);
+        if ($checkDoc->fetch()) {
+            $errors['pdf_files'] = "Un document avec ce nom ($filename) existe déjà dans le système. Veuillez renommer votre fichier.";
+        }
     }
     if (!empty($errors)) {
     echo json_encode(['ok' => false, 'errors' => $errors]);
@@ -856,6 +874,9 @@ case 'amendement':
     } elseif ($date_emission && $date_amendement <= $date_emission) {
         // NEW CONSTRAINT: Cannot be before Emission
         $errors['date_amendement'] = "La date d'amendement ne peut pas être antérieure à la date d'émission ($date_emission).";
+    }elseif ($original_date_x && $date_amendement >= $original_date_x) {
+        // NEW CONSTRAINT: Cannot be after original expiration
+        $errors['date_amendement'] = "La date d'amendement doit être avant l'ancienne date d'expiration ($original_date_x).";
     }
 
     if ($type_amendementID <= 0) {
@@ -864,14 +885,23 @@ case 'amendement':
 
     // PDF RESTRICTION: Mandatory and Basic Format Check
     if (!isset($_FILES['amendment_pdf']) || $_FILES['amendment_pdf']['error'] === UPLOAD_ERR_NO_FILE) {
-    $errors['amendment_pdf'] = "Le document PDF de l'amendement est obligatoire.";
-} else {
-        $file_extension = strtolower(pathinfo($_FILES['amendment_pdf']['name'], PATHINFO_EXTENSION));
+        $errors['amendment_pdf'] = "Le document PDF de l'amendement est obligatoire.";
+    } else {
+        $filename = $_FILES['amendment_pdf']['name'];
+        $file_extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $file_size = $_FILES['amendment_pdf']['size'];
+        
         if ($file_extension !== 'pdf') {
             $errors['amendment_pdf'] = "Seuls les fichiers PDF sont autorisés.";
         } elseif ($file_size > 10 * 1024 * 1024) { // 10MB
             $errors['amendment_pdf'] = "Le fichier est trop volumineux (Max 10 Mo).";
+        } else {
+            // Vérification de l'unicité du nom de fichier
+            $checkDoc = $pdo->prepare("SELECT id FROM document WHERE nom_document = ?");
+            $checkDoc->execute([$filename]);
+            if ($checkDoc->fetch()) {
+                $errors['amendment_pdf'] = "Un document avec ce nom existe déjà. Veuillez renommer votre fichier.";
+            }
         }
     }
 
@@ -983,8 +1013,27 @@ case 'delete_amendement':
     //                                          AUTHENTIFICATION
 
     
-    case 'authentification':
+case 'authentification':
     header('Content-Type: application/json');
+    
+    // --- VALIDATION DU FICHIER AVANT TOUT ---
+    $errors = [];
+    if (!isset($_FILES['authentification_pdf']) || $_FILES['authentification_pdf']['error'] === UPLOAD_ERR_NO_FILE) {
+        $errors['authentification_pdf'] = "Le document PDF est obligatoire.";
+    } else {
+        $filename = $_FILES['authentification_pdf']['name'];
+        $checkDoc = $pdo->prepare("SELECT id FROM document WHERE nom_document = ?");
+        $checkDoc->execute([$filename]);
+        if ($checkDoc->fetch()) {
+            $errors['authentification_pdf'] = "Un document avec ce nom existe déjà. Veuillez le renommer.";
+        }
+    }
+
+    if (!empty($errors)) {
+        echo json_encode(['ok' => false, 'errors' => $errors]);
+        exit;
+    }
+
     try {
         $pdo->beginTransaction();
 
@@ -1021,6 +1070,155 @@ case 'delete_amendement':
                 // Liaison
                 $sqlLink = "INSERT INTO document_authentification (documentID, authentificationID) VALUES (?, ?)";
                 $pdo->prepare($sqlLink)->execute([$document_id, $auth_id]);
+            }
+        }
+
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+    break;
+
+case 'liberation':
+    header('Content-Type: application/json');
+    try {
+        $pdo->beginTransaction();
+
+        $garantie_id = intval($_POST['garantie_soumissionID']);
+        $num_lib     = trim($_POST['num_liberation'] ?? '');
+        $date_lib    = $_POST['date_liberation'];
+        $type_libID  = intval($_POST['type_liberationID']);
+        $today       = date('Y-m-d');
+        
+        // --- VALIDATIONS ---
+     // 1. Contrainte Date Futur
+        if ($date_lib > $today) {
+            $errors['date_liberation'] = "La date ne peut pas être dans le futur.";
+        }
+
+        // 2. Contrainte Unicité du Fichier PDF
+        if (!isset($_FILES['liberation_pdf']) || $_FILES['liberation_pdf']['error'] === UPLOAD_ERR_NO_FILE) {
+            $errors['liberation_pdf'] = "Le document PDF est obligatoire.";
+        } else {
+            $filename = $_FILES['liberation_pdf']['name'];
+            $checkDoc = $pdo->prepare("SELECT id FROM document WHERE nom_document = ?");
+            $checkDoc->execute([$filename]);
+            if ($checkDoc->fetch()) {
+                $errors['liberation_pdf'] = "Un document avec ce nom existe déjà. Veuillez le renommer.";
+            }
+        }
+
+        if (!empty($errors)) {
+            echo json_encode(['ok' => false, 'errors' => $errors]);
+            exit;
+        }
+        // -------------------
+
+        $montant_raw = $_POST['montant_libere'] ?? '';
+        $montant     = !empty($montant_raw) ? floatval(str_replace([' ', ','], ['', '.'], $montant_raw)) : 0;
+
+        // Insertion
+        $sqlLib = "INSERT INTO liberation (num_liberation, montant_libere, date_liberation, garantie_soumissionID, type_liberationID, utilisateurID) 
+                    VALUES (?, ?, ?, ?, ?, ?)";
+        $stmtLib = $pdo->prepare($sqlLib);
+        $stmtLib->execute([$num_lib, $montant, $date_lib, $garantie_id, $type_libID, (int)$_SESSION['user_id']]);
+        $lib_id = $pdo->lastInsertId();
+
+        // Mise à jour Statut Garantie -> "Libérée" (ID 3) si TOTALE (Suppose ID Type 1 = Totale)
+        // Vous pouvez ajuster cette logique pour ne changer le statut que si c'est une libération Totale
+        if ($type_libID == 1) { 
+            $sqlStatut = "UPDATE garantie_soumission SET statutID = 3 WHERE id = ?";
+            $pdo->prepare($sqlStatut)->execute([$garantie_id]);
+        }
+
+        // PDF (Type 3 = Libération)
+        if (isset($_FILES['liberation_pdf']) && $_FILES['liberation_pdf']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = 'uploads/liberations/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+            $filename = $_FILES['liberation_pdf']['name'];
+            $extension = pathinfo($filename, PATHINFO_EXTENSION);
+            $new_name = 'LIB_' . $lib_id . '_' . time() . '.' . $extension;
+            $target_file = $upload_dir . $new_name;
+
+            if (move_uploaded_file($_FILES['liberation_pdf']['tmp_name'], $target_file)) {
+                $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) VALUES (?, ?, ?, ?, 3)";
+                $docCode = 'DLIB_' . $lib_id . '_' . time();
+                $pdo->prepare($sqlDoc)->execute([$docCode, $filename, $target_file, $garantie_id]);
+                $doc_id = $pdo->lastInsertId();
+                $pdo->prepare("INSERT INTO document_liberation (documentID, liberationID) VALUES (?, ?)")->execute([$doc_id, $lib_id]);
+            }
+        }
+
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+    break;
+
+case 'delete_liberation':
+    // Logique standard de suppression (similaire à authentification)
+    $id = intval($_POST['id'] ?? 0);
+    try {
+        $pdo->prepare("DELETE FROM liberation WHERE id = ?")->execute([$id]);
+        // NOTE : Les triggers ou la logique SQL doivent gérer le nettoyage des documents si nécessaire
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'message' => "Erreur suppression"]);
+    }
+    exit;
+    
+    break;
+    header('Content-Type: application/json');
+    try {
+        $pdo->beginTransaction();
+
+        $garantie_id = intval($_POST['garantie_soumissionID']);
+        $num_lib     = trim($_POST['num_liberation'] ?? '');
+        $date_lib    = $_POST['date_liberation'];
+        $type_libID  = intval($_POST['type_liberationID']);
+        
+        $montant_raw = $_POST['montant_libere'] ?? '';
+        $montant     = !empty($montant_raw) ? floatval(str_replace([' ', ','], ['', '.'], $montant_raw)) : 0;
+
+        // 1. Insertion dans la table liberation
+        $sqlLib = "INSERT INTO liberation (num_liberation, montant_libere, date_liberation, garantie_soumissionID, type_liberationID, utilisateurID) 
+                    VALUES (?, ?, ?, ?, ?, ?)";
+        $stmtLib = $pdo->prepare($sqlLib);
+        $stmtLib->execute([$num_lib, $montant, $date_lib, $garantie_id, $type_libID, (int)$_SESSION['user_id']]);
+        $lib_id = $pdo->lastInsertId();
+
+        // 2. Mise à jour du statut de la Garantie à "Libérée" (statutID = 3 selon votre BDD)
+        $sqlStatut = "UPDATE garantie_soumission SET statutID = 3 WHERE id = ?";
+        $pdo->prepare($sqlStatut)->execute([$garantie_id]);
+
+        // 3. Gestion du Fichier PDF
+        if (isset($_FILES['liberation_pdf']) && $_FILES['liberation_pdf']['error'] === UPLOAD_ERR_OK) {
+            $upload_dir = 'uploads/liberations/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+
+            $filename = $_FILES['liberation_pdf']['name'];
+            $extension = pathinfo($filename, PATHINFO_EXTENSION);
+            $new_name = 'LIB_' . $lib_id . '_' . time() . '.' . $extension;
+            $target_file = $upload_dir . $new_name;
+
+            if (move_uploaded_file($_FILES['liberation_pdf']['tmp_name'], $target_file)) {
+                // Type 3 = LIBERATION (selon votre table type_document)
+                $sqlDoc = "INSERT INTO document (code, nom_document, chemin_access, garantie_soumissionID, type_documentID) 
+                           VALUES (?, ?, ?, ?, ?)";
+                $stmtDoc = $pdo->prepare($sqlDoc);
+                $docCode = 'DOC_LIB_' . $lib_id;
+                $stmtDoc->execute([$docCode, $filename, $target_file, $garantie_id, 3]);
+                $document_id = $pdo->lastInsertId();
+
+                // Liaison document_liberation
+                $sqlLink = "INSERT INTO document_liberation (documentID, liberationID) VALUES (?, ?)";
+                $pdo->prepare($sqlLink)->execute([$document_id, $lib_id]);
             }
         }
 
