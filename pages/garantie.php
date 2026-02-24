@@ -241,7 +241,7 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
                         </div>
                         <div class="col-md-6" id="nouvelleDateGroup" style="display: none;">
                             <label class="form-label fw-bold">Nouvelle Date d'Expiration <span class="text-danger">*</span></label>
-                            <input type="date" name="nouvelle_date_expiration" id="nouvelleDateInput" class="form-control standard-input">
+                            <input type="date" name="nouvelle_date_expiration" id="nouvelleDateInput" class="form-control standard-input" required>
                             <small class="text-muted">Actuelle : <span id="dateExpirationActuelle"></span></small>
                             <div class="invalid-feedback"></div>
                         </div>
@@ -494,16 +494,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
 
     // --- CHECK DATE CONSTRAINTS ---
-    function checkDateConstraints(input, type) {
-        if(!currentEditingGarantie) return true;
-        
-        const val = input.value;
-        const fb = getFeedbackElement(input);
-        const today = getTodayLocal(); 
-        
-        input.classList.remove('is-invalid', 'is-valid');
-        if(!val) return true;
+   function checkDateConstraints(input, type) {
+    if(!currentEditingGarantie) return true;
 
+    const val = input.value;
+    const fb = getFeedbackElement(input);
+    const today = getTodayLocal();
+
+    // Do nothing if empty so we don't overwrite the error set by validateField()
+    if(!val) return true; 
+
+    input.classList.remove('is-invalid', 'is-valid');
         if (type === 'amendement_date') {
             const min = currentEditingGarantie.dateEmission;
             const max = currentEditingGarantie.dateExpirationActuelle;
@@ -647,20 +648,21 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
+      const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
         if(type === 'amendement' && dateAmendInput) {
-            dateAmendInput.addEventListener('input', function() {
-                checkDateConstraints(this, 'amendement_date');
-            });
-        }
+    dateAmendInput.addEventListener('input', function() {
+        validateField(this); // <-- ADD THIS LINE
+        checkDateConstraints(this, 'amendement_date');
+    });
+}
 
-        const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
-        if(type === 'amendement' && newExpInput) {
-            newExpInput.addEventListener('input', function() {
-                checkDateConstraints(this, 'new_expiration');
-            });
-        }
-
+const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
+if(type === 'amendement' && newExpInput) {
+    newExpInput.addEventListener('input', function() {
+        validateField(this); // <-- ADD THIS LINE
+        checkDateConstraints(this, 'new_expiration');
+    });
+}
         modalForm.querySelectorAll('.intel-input').forEach(i => {
             if(i.name !== 'num_amendement') {
                 i.addEventListener('input', function() {
