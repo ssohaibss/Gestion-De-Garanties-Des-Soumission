@@ -13,18 +13,18 @@ $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll(PD
 ?>
 
 <div class="content-header mb-4">
-    <h2><i class="fas fa-truck me-2"></i>Gestion des Fournisseurs</h2>
+    <h2><i class="fas fa-truck me-2"></i>Gestion des Soumissionnaires</h2>
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
         <i class="fas <?= $edit_data ? 'fa-edit' : 'fa-plus-circle' ?> me-2"></i> 
-        <span><?= $edit_data ? "Modifier le fournisseur" : "Nouveau fournisseur" ?></span>
+        <span><?= $edit_data ? "Modifier le soumissionaire" : "Nouveau soumissionnaire" ?></span>
     </div>
     <div class="card-body">
-        <form id="fournisseurForm" novalidate>
-            <input type="hidden" name="form_type" value="fournisseur">
-            <input type="hidden" name="id" id="fournisseurId" value="<?= $edit_data['id'] ?? '' ?>">
+        <form id="soumissionnaireForm" novalidate>
+            <input type="hidden" name="form_type" value="soumissionnaire">
+            <input type="hidden" name="id" id="soumissionnaireId" value="<?= $edit_data['id'] ?? '' ?>">
             
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -85,7 +85,7 @@ $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll(PD
                     <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
                     <?= $edit_data ? 'Mettre à jour' : 'Enregistrer' ?>
                 </button>
-                <a href="index.php?page=liste-fournisseur" class="btn btn-secondary shadow-sm">Annuler</a>
+                <a href="index.php?page=liste-soumissionnaire" class="btn btn-secondary shadow-sm">Annuler</a>
             </div>
         </form>
     </div>
@@ -93,7 +93,7 @@ $pays_result = $pdo->query("SELECT id, nom FROM pays ORDER BY nom")->fetchAll(PD
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('fournisseurForm');
+    const form = document.getElementById('soumissionnaireForm');
 
     // --- 1. UTILS (Delay function) ---
     function debounce(func, wait) {
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const val = input.value.trim();
         if (!val) return true;
 
-        const idElement = document.getElementById('fournisseurId');
+        const idElement = document.getElementById('soumissionnaireId');
         const idValue = idElement ? idElement.value : 0;
         const fb = getFeedbackElement(input);
         const fieldName = input.name;
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!["nom", "email", "telephone"].includes(fieldName)) return true;
 
         try {
-            const res = await fetch(`pages/unique_check.php?type=fournisseur&field=${fieldName}&value=${encodeURIComponent(val)}&id=${idValue}`);
+            const res = await fetch(`pages/unique_check.php?type=soumissionnaire&field=${fieldName}&value=${encodeURIComponent(val)}&id=${idValue}`);
             if (!res.ok) return true;
 
             const data = await res.json();
@@ -290,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.ok) {
                 await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
-                window.location.href = 'index.php?page=liste-fournisseur';
+                window.location.href = 'index.php?page=liste-soumissionnaire';
             } else {
                 if (data.errors) {
                     for (const [key, msg] of Object.entries(data.errors)) {

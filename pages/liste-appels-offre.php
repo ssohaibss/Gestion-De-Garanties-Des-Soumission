@@ -97,7 +97,7 @@ document.querySelectorAll('.delete-ao').forEach(btn => {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+                        await Swal.fire({ icon: 'success', title: 'Appel d"offre supprimée !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                         location.reload();
                     } else { Swal.fire('Erreur', data.message, 'error'); }
                 } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }

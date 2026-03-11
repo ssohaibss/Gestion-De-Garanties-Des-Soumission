@@ -5,14 +5,14 @@ if(!isset($pdo)) { $pdo = getDBConnection(); }
 header('Content-Type: application/json');
 
 $config = [
-    'pays'        => ['table' => 'pays',            'fields' => ['nom' => 'nom', 'code_pays' => 'code_pays']],
-    'devise'      => ['table' => 'devise',          'fields' => ['libelle' => 'libelle', 'code' => 'code']],
-    'structure'   => ['table' => 'structure',       'fields' => ['code' => 'code', 'libelle' => 'libelle']],
-    'user'        => ['table' => 'utilisateur',     'fields' => ['username' => 'username', 'email' => 'email']],
-    'banque'      => ['table' => 'banque',          'fields' => ['code' => 'code', 'nom_banque' => 'nom_banque']],
-    'agence'      => ['table' => 'agence',          'fields' => ['code' => 'code', 'nom' => 'nom']],
-    'fournisseur' => ['table' => 'soumissionnaire', 'fields' => ['nom' => 'nom_entreprise', 'email' => 'email', 'telephone' => 'telephone']],
-    'appel_offre' => ['table' => 'appel_offre',     'fields' => ['numero_ao' => 'num_app_offre']],
+    'pays'            => ['table' => 'pays',            'fields' => ['nom' => 'nom', 'code_pays' => 'code_pays']],
+    'devise'          => ['table' => 'devise',          'fields' => ['libelle' => 'libelle', 'code' => 'code']],
+    'structure'       => ['table' => 'structure',       'fields' => ['code' => 'code', 'libelle' => 'libelle']],
+    'user'            => ['table' => 'utilisateur',     'fields' => ['username' => 'username', 'email' => 'email']],
+    'banque'          => ['table' => 'banque',          'fields' => ['code' => 'code', 'nom_banque' => 'nom_banque']],
+    'agence'          => ['table' => 'agence',          'fields' => ['code' => 'code', 'nom' => 'nom']],
+    'soumissionnaire' => ['table' => 'soumissionnaire', 'fields' => ['nom' => 'nom_entreprise', 'email' => 'email', 'telephone' => 'telephone']],
+    'appel_offre'     => ['table' => 'appel_offre',     'fields' => ['numero_ao' => 'num_app_offre']],
     
     // Configs essentielles pour tes garanties
     'garantie'         => ['table' => 'garantie_soumission', 'fields' => ['num_garantie' => 'num_garantie']],
@@ -39,9 +39,20 @@ try {
     if ($type === 'agence' && $field === 'nom') {
         $adresse = trim($_REQUEST['adresse'] ?? '');
         $banqueID = $_REQUEST['banqueID'] ?? '';
+        
         if ($adresse !== '' && $banqueID !== '') {
-            $stmt = $pdo->prepare("SELECT 1 FROM agence WHERE nom = ? AND adresse = ? AND banqueID = ? LIMIT 1");
-            $stmt->execute([$value, $adresse, $banqueID]);
+            $sql_agence = "SELECT 1 FROM agence WHERE nom = ? AND adresse = ? AND banqueID = ?";
+            $params_agence = [$value, $adresse, $banqueID];
+            
+            // LA CORRECTION : Exclusion de l'ID actuel lors de la modification
+            if ($current_id > 0) {
+                $sql_agence .= " AND id != ?";
+                $params_agence[] = $current_id;
+            }
+            
+            $stmt = $pdo->prepare($sql_agence . " LIMIT 1");
+            $stmt->execute($params_agence);
+            
             if ($stmt->fetch()) {
                 echo json_encode(['valid' => false, 'exists' => true, 'message' => 'Cette agence existe déjà pour cette banque.']);
                 exit;
@@ -49,10 +60,11 @@ try {
         }
     }
 
-    // Vérification standard
+    // Vérification standard pour tous les autres champs
     $sql = "SELECT 1 FROM $tableName WHERE $columnName = ?";
     $params = [$value];
 
+    // Exclusion de l'ID actuel pour la vérification standard
     if ($current_id > 0) {
         $sql .= " AND id != ?";
         $params[] = $current_id;

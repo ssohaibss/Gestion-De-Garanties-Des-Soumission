@@ -11,16 +11,16 @@ $suppliers = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
-        <h2 class="page-title"><i class="fas fa-truck me-2"></i>Liste des Fournisseurs</h2>
-        <a href="index.php?page=fournisseur" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
-            <i class="fas fa-plus me-2"></i>Ajouter un Fournisseur
+        <h2 class="page-title"><i class="fas fa-truck me-2"></i>Liste des Soumissionnaires</h2>
+        <a href="index.php?page=soumissionnaire" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
+            <i class="fas fa-plus me-2"></i>Ajouter un Soumissionnaire
         </a>
     </div>
 </div>
 
 <div class="card shadow-sm border-0">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
-        <i class="fas fa-list me-2"></i>Tous les Fournisseurs
+        <i class="fas fa-list me-2"></i>Tous les Soumissionnaires
     </div>
     <div class="card-body p-0">
         <?php if (count($suppliers) > 0): ?>
@@ -44,7 +44,7 @@ $suppliers = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
                             <td><?= htmlspecialchars($s['pays_nom'] ?? 'N/A') ?></td>
                             <td class="text-center">
                                 <div class="btn-group shadow-sm">
-                                    <a href="index.php?page=fournisseur&edit=<?= $s['id'] ?>" class="btn btn-sm text-white" style="background-color: #486a70;">
+                                    <a href="index.php?page=soumissionnaire&edit=<?= $s['id'] ?>" class="btn btn-sm text-white" style="background-color: #486a70;">
                                         <i class="fas fa-pencil-alt"></i>
                                     </a>
                                     <button class="btn btn-sm btn-danger delete-supplier" 
@@ -60,7 +60,7 @@ $suppliers = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-5"><p class="text-muted">Aucun fournisseur enregistré.</p></div>
+        <div class="text-center py-5"><p class="text-muted">Aucun soumissionnaire enregistré.</p></div>
         <?php endif; ?>
     </div>
 </div>
@@ -73,7 +73,7 @@ document.querySelectorAll('.delete-supplier').forEach(btn => {
 
         Swal.fire({
             title: 'Supprimer ?',
-            text: `Supprimer le fournisseur "${nom}" ?`,
+            text: `Supprimer le soumissionnaire "${nom}" ?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -83,13 +83,13 @@ document.querySelectorAll('.delete-supplier').forEach(btn => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 const fd = new FormData();
-                fd.append('form_type', 'delete_fournisseur');
+                fd.append('form_type', 'delete_soumissionnaire');
                 fd.append('id', id);
                 try {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+                        await Swal.fire({ icon: 'success', title: 'Soumissionnaire supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
                         location.reload();
                     }
                 } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }

@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (data.ok) {
                             await Swal.fire({ 
                                 icon: 'success', 
-                                title: 'Supprimée !', 
+                                title: 'Garantie supprimée !', 
                                 timer: 1500, 
                                 showConfirmButton: false,
                                 timerProgressBar: true 

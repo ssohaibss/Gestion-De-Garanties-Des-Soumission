@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
         const data = await res.json();
         if (data.ok) {
-            await Swal.fire({ icon: 'success', title: 'Réussi', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
             window.location.href = 'index.php?page=liste-structure';
         }
     });

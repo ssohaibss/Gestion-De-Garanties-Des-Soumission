@@ -17,10 +17,10 @@ $form_type = $_POST['form_type'] ?? '';
     
     
     switch($form_type) {
-        //                                          fournisseur
+        //                                          soumissionnaire
 
 
-case 'fournisseur':
+case 'soumissionnaire':
     $id = intval($_POST['id'] ?? 0);
     $is_update = ($id > 0);
 
@@ -85,14 +85,14 @@ case 'fournisseur':
     exit;
     break;
 
-case 'delete_fournisseur':
+case 'delete_soumissionnaire':
     $id = intval($_POST['id'] ?? 0);
     try {
         $stmt = $pdo->prepare("DELETE FROM soumissionnaire WHERE id = ?");
         $stmt->execute([$id]);
         echo json_encode(['ok' => true]);
     } catch (PDOException $e) {
-        echo json_encode(['ok' => false, 'message' => "Impossible de supprimer ce fournisseur."]);
+        echo json_encode(['ok' => false, 'message' => "Impossible de supprimer ce soumissionnaire."]);
     }
     exit;
     break;
@@ -148,11 +148,11 @@ case 'pays':
 
 case 'delete_pays':
     $id = intval($_POST['id'] ?? 0);
-    // Vérification d'intégrité : est-il lié à un fournisseur ?
+    // Vérification d'intégrité : est-il lié à un soumissionnaire ?
     $check = $pdo->prepare("SELECT 1 FROM soumissionnaire WHERE paysID = ? LIMIT 1");
     $check->execute([$id]);
     if ($check->fetch()) {
-        echo json_encode(['ok' => false, 'message' => 'Impossible de supprimer : ce pays est lié à des fournisseurs.']);
+        echo json_encode(['ok' => false, 'message' => 'Impossible de supprimer : ce pays est lié à des soumissionnaire.']);
         exit;
     }
 
@@ -630,7 +630,7 @@ case 'update_garantie':
     $deviseID = $_POST['deviseID'] ?? '';
     $date_e = $_POST['date_emission'] ?? '';
     $date_x = $_POST['date_expiration'] ?? '';
-    $fournisseurID = $_POST['soumissionnaireID'] ?? '';
+    $soumissionnaireID = $_POST['soumissionnaireID'] ?? '';
     $agenceID = $_POST['agenceID'] ?? '';
     $structureID = $_POST['structureID'] ?? '';
     $statutID = $_POST['statutID'] ?? '';
@@ -645,7 +645,7 @@ case 'update_garantie':
     elseif (strlen($num_garantie) > 20) $errors['num_garantie'] = "Maximum 20 caractères.";
     
     if (empty($deviseID)) $errors['deviseID'] = "La devise est obligatoire.";
-    if (empty($fournisseurID)) $errors['soumissionnaireID'] = "Le soumissionnaire est obligatoire.";
+    if (empty($soumissionnaireID)) $errors['soumissionnaireID'] = "Le soumissionnaire est obligatoire.";
     if (empty($agenceID)) $errors['agenceID'] = "L'agence est obligatoire.";
     if (empty($structureID)) $errors['structureID'] = "La structure est obligatoire.";
     if (empty($statutID)) $errors['statutID'] = "Le statut est obligatoire.";
@@ -714,7 +714,7 @@ case 'update_garantie':
         
         $params = [
             $num_garantie, $montant, $date_e, $date_x, 
-            $fournisseurID, $agenceID, $deviseID, $structureID, 
+            $soumissionnaireID, $agenceID, $deviseID, $structureID, 
             $aoID, $statutID, (int)$_SESSION['user_id']
         ];
 

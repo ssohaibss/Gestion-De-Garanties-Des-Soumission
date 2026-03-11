@@ -28,7 +28,7 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
 
         // Logique pour le menu déroulant actif
-        $adminPages = ['fournisseur', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence', 'liste-fournisseur', 'liste-pays', 'liste-devise', 'liste-structure', 'liste-user', 'liste-appels-offre', 'liste-banque', 'liste-agence'];
+        $adminPages = ['soumissionnaire', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence', 'liste-soumissionnaire', 'liste-pays', 'liste-devise', 'liste-structure', 'liste-user', 'liste-appels-offre', 'liste-banque', 'liste-agence'];
         $currentPage = $_GET['page'] ?? 'dashboard';
         $isAdminMenuOpen = in_array($currentPage, $adminPages);
 ?>
@@ -187,7 +187,7 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
                         </a>
                         <div class="collapse <?php echo $isAdminMenuOpen ? 'show' : ''; ?>" id="adminSubmenu">
                             <ul class="list-unstyled">
-                                <li><a class="dropdown-item <?php echo ($currentPage == 'fournisseur' || $currentPage == 'liste-fournisseur') ? 'active' : ''; ?>" href="index.php?page=liste-fournisseur">Fournisseur</a></li>
+                                <li><a class="dropdown-item <?php echo ($currentPage == 'soumissionnaire' || $currentPage == 'liste-soumissionnaire') ? 'active' : ''; ?>" href="index.php?page=liste-soumissionnaire">Soumissionnaire</a></li>
                                 <li><a class="dropdown-item <?php echo ($currentPage == 'pays' || $currentPage == 'liste-pays') ? 'active' : ''; ?>" href="index.php?page=liste-pays">Pays</a></li>
                                 <li><a class="dropdown-item <?php echo ($currentPage == 'devise' || $currentPage == 'liste-devise') ? 'active' : ''; ?>" href="index.php?page=liste-devise">Devise</a></li>
                                 <li><a class="dropdown-item <?php echo ($currentPage == 'structure' || $currentPage == 'liste-structure') ? 'active' : ''; ?>" href="index.php?page=liste-structure">Structure</a></li>

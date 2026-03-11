@@ -5,7 +5,7 @@ if(!isset($pdo)) { $pdo = getDBConnection(); }
 // 1. Récupération des données pour les selects
 $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code ASC")->fetchAll();
 $appels_offre = $pdo->query("SELECT Id, num_app_offre FROM appel_offre ORDER BY num_app_offre DESC")->fetchAll();
-$fournisseurs = $pdo->query("SELECT Id, nom_entreprise FROM soumissionnaire ORDER BY nom_entreprise ASC")->fetchAll();
+$soumissionnaire = $pdo->query("SELECT Id, nom_entreprise FROM soumissionnaire ORDER BY nom_entreprise ASC")->fetchAll();
 $structures = $pdo->query("SELECT Id, libelle FROM structure ORDER BY libelle ASC")->fetchAll();
 $banque = $pdo->query("SELECT Id, nom_banque FROM banque ORDER BY nom_banque ASC")->fetchAll();
 $agences = $pdo->query("SELECT Id, nom, banqueID FROM agence ORDER BY nom ASC")->fetchAll();
@@ -114,10 +114,10 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-bold">Soumissionnaire (Fournisseur) <span class="text-danger">*</span></label>
-                    <select name="soumissionnaireID" id="fournisseurSelect" class="form-select standard-input" required>
-                        <option value="">Choisir un fournisseur...</option>
-                        <?php foreach($fournisseurs as $f): ?>
+                    <label class="form-label fw-bold">Soumissionnaire <span class="text-danger">*</span></label>
+                    <select name="soumissionnaireID" id="soumissionnaireSelect" class="form-select standard-input" required>
+                        <option value="">Choisir un soumissionnaire...</option>
+                        <?php foreach($soumissionnaire as $f): ?>
                             <option value="<?= $f['Id'] ?>"><?= htmlspecialchars($f['nom_entreprise']) ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -851,7 +851,7 @@ function activateEditMode(g) {
     document.getElementById('montantInput').value = g.montant_garantie;
     document.getElementById('dateEInput').value = g.date_emission;
     document.getElementById('dateXInput').value = g.date_expiration;
-    document.getElementById('fournisseurSelect').value = g.soumissionnaireID;
+    document.getElementById('soumissionnaireSelect').value = g.soumissionnaireID;
     document.getElementById('deviseSelect').value = g.deviseID;
     document.getElementById('aoSelect').value = g.appel_offreID;
     document.getElementById('structureSelect').value = g.structureID;

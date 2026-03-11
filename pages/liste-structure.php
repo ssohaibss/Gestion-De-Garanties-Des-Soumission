@@ -83,7 +83,7 @@ document.querySelectorAll('.delete-structure').forEach(btn => {
                     const data = await res.json();
                     if (data.ok) {
                         await Swal.fire({ 
-                            icon: 'success', title: 'Supprimé !', 
+                            icon: 'success', title: 'Structure supprimée !', 
                             timer: 1500, showConfirmButton: false, timerProgressBar: true 
                         });
                         location.reload();

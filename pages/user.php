@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await res.json();
             
             if (data.ok) {
-                await Swal.fire({ icon: 'success', title: 'Enregistré', timer: 1500, showConfirmButton: false });
+                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                 window.location.href = 'index.php?page=liste-user';
             } else {
                 Swal.fire('Erreur', data.message || 'Erreur inconnue', 'error');
