@@ -48,7 +48,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                     <label class="form-label fw-bold">Email Professionnel <span class="text-danger">*</span></label>
                     <input type="email" class="form-control intel-input" name="email" id="emailInput"
                            value="<?= $edit_data['email'] ?? '' ?>" required
-                           data-pattern="^[a-zA-Z0-9._%+-]+@sonatrach\.com$" data-msg="Doit se terminer par @sonatrach.com">
+                         data-pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$" data-msg="Veuillez entrer une adresse email valide.">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -79,7 +79,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                     </label>
                     <div class="input-group">
                         <input type="password" class="form-control intel-input" name="password" id="passwordField"
-                               data-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+                               data-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_\-])[A-Za-z\d@$!%*?&_\-]{8,}$"
                                data-msg="8 car. min, 1 Maj, 1 Min, 1 Chiffre et 1 Symbole.">
                         <button class="btn btn-outline-secondary" type="button" id="togglePassword"><i class="fas fa-eye"></i></button>
                         <div class="invalid-feedback"></div>
@@ -150,6 +150,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
+        // Pattern Check
+        if (val !== "" && input.hasAttribute('data-pattern')) {
+            const pattern = new RegExp(input.getAttribute('data-pattern'));
+            if (!pattern.test(val)) {
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = input.getAttribute('data-msg') || "Format invalide.";
+                return false;
+            }
+        }
+
         // Green by default
         if (val !== "") input.classList.add('is-valid');
         return true;
@@ -189,7 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
 
     // --- 5. LISTENERS ---
-
     const userIn = document.getElementById('usernameInput');
     if (userIn) {
         userIn.addEventListener('input', function() {
@@ -255,18 +264,43 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
-            const data = await res.json();
+            const text = await res.text(); // Capture raw text first to avoid crashing
+            
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (err) {
+                console.error("Erreur serveur (JSON invalide):", text);
+                Swal.fire('Erreur technique', 'Vérifiez la console (F12) pour voir l\'erreur PHP.', 'error');
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+                return;
+            }
             
             if (data.ok) {
                 await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                 window.location.href = 'index.php?page=liste-user';
             } else {
-                Swal.fire('Erreur', data.message || 'Erreur inconnue', 'error');
+                // Safely extract the exact error message text 
+                let errorMsg = data.message || 'Validation échouée.';
+                
+                if (data.errors && typeof data.errors === 'object') {
+                    // This prevents [object Object] from happening again
+                    errorMsg = Object.values(data.errors).join('<br><br>');
+                }
+                
+                Swal.fire({
+                    title: 'Erreur d\'enregistrement',
+                    html: `<div style="text-align: left; font-size: 15px;">${errorMsg}</div>`,
+                    icon: 'error'
+                });
+                
                 btn.innerHTML = oldText;
                 btn.disabled = false;
             }
         } catch (err) {
-            Swal.fire('Erreur', 'Erreur serveur', 'error');
+            console.error(err);
+            Swal.fire('Erreur', 'Impossible de joindre le serveur.', 'error');
             btn.innerHTML = oldText;
             btn.disabled = false;
         }
