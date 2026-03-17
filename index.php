@@ -25,19 +25,22 @@ if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     exit();
 }
 
-$userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
+$userName = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? 'Utilisateur');
 
-        // Logique pour le menu déroulant actif
-        $adminPages = ['soumissionnaire', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence', 'liste-soumissionnaire', 'liste-pays', 'liste-devise', 'liste-structure', 'liste-user', 'liste-appels-offre', 'liste-banque', 'liste-agence'];
-        $currentPage = $_GET['page'] ?? 'dashboard';
-        $isAdminMenuOpen = in_array($currentPage, $adminPages);
+// Logique pour le menu déroulant actif
+$adminPages = ['soumissionnaire', 'pays', 'devise', 'structure', 'user', 'appel-offre', 'banque', 'agence', 'liste-soumissionnaire', 'liste-pays', 'liste-devise', 'liste-structure', 'liste-user', 'liste-appels-offre', 'liste-banque', 'liste-agence'];
+$currentPage = $_GET['page'] ?? 'dashboard';
+$isAdminMenuOpen = in_array($currentPage, $adminPages);
+
+// Vérification du rôle (1 = Administrateur)
+$isAdmin = (isset($_SESSION['role_id']) && $_SESSION['role_id'] == 1);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Dashboard Sonatrach</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
@@ -60,7 +63,7 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
         body {
             overflow-x: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #faf0de;
+            background: #dce3e9;
         }
         
         /* SIDEBAR STYLING */
@@ -169,7 +172,7 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
                 <div class="profile-section">
                     <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($userName); ?>&background=e8772b&color=fff" alt="Profile" class="profile-img">
                     <p class="profile-name"><?php echo htmlspecialchars($userName); ?></p>
-                    <p class="profile-role">Administrateur</p>
+                    <p class="profile-role"><?php echo $isAdmin ? 'Administrateur' : 'Agent'; ?></p>
                 </div>
                 
                 <ul class="nav flex-column mt-3">
@@ -179,6 +182,7 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
                         </a>
                     </li>
                     
+                    <?php if ($isAdmin): ?>
                     <li class="nav-item">
                         <a class="nav-link dropdown-toggle <?php echo $isAdminMenuOpen ? '' : 'collapsed'; ?>" 
                            href="#" data-bs-toggle="collapse" data-bs-target="#adminSubmenu" 
@@ -198,10 +202,11 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
                             </ul>
                         </div>
                     </li>
+                    <?php endif; ?>
                     
                     <li class="nav-item">
-                        <a class="nav-link <?php echo ($currentPage == 'garantie') ? 'active' : ''; ?>" href="index.php?page=liste-garanties">
-                            <i class="fas fa-shield-alt"></i> <span>Ajouter Garantie</span>
+                        <a class="nav-link <?php echo ($currentPage == 'garantie' || $currentPage == 'liste-garanties') ? 'active' : ''; ?>" href="index.php?page=liste-garanties">
+                            <i class="fas fa-shield-alt"></i> <span>Garanties</span>
                         </a>
                     </li>
                     
@@ -217,7 +222,12 @@ $userName = $_SESSION['nom_complet'] ?? ($_SESSION['username'] ?? 'Admin User');
                 <?php 
                 $file = "pages/{$currentPage}.php";
                 if (file_exists($file)) {
-                    include $file;
+                    // Check if a normal agent is trying to force access an admin page via the URL
+                    if (!$isAdmin && in_array($currentPage, $adminPages)) {
+                        echo '<div class="alert alert-danger mt-4"><i class="fas fa-exclamation-triangle me-2"></i> Accès refusé. Vous n\'avez pas les droits pour voir cette page.</div>';
+                    } else {
+                        include $file;
+                    }
                 } else {
                     echo '<div class="alert alert-danger mt-3">La page "'.htmlspecialchars($currentPage).'" n\'existe pas.</div>';
                 }

@@ -2,12 +2,15 @@
 require_once 'database.php';
 require_once 'includes/functions.php';
 
+// Vérification du rôle admin
+$isAdmin = (isset($_SESSION['role_id']) && $_SESSION['role_id'] == 1);
+
 // 1. Define a single authoritative date
 $today = new DateTimeImmutable('today', new DateTimeZone('UTC'));
 $todayStr   = $today->format('Y-m-d');
 $in30DaysStr = $today->modify('+30 days')->format('Y-m-d');
 
-// --- KPI CARDS DATA ---
+// --- KPI CARDS DATA (GARANTIES) ---
 $totalGaranties = (int) $pdo->query("SELECT COUNT(*) FROM garantie_soumission")->fetchColumn();
 
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expiration >= :today AND statutID = 1");
@@ -22,10 +25,14 @@ $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expir
 $stmt->execute(['today' => $todayStr]);
 $expiredGaranties = (int) $stmt->fetchColumn();
 
-// --- NOUVELLES STATISTIQUES ---
+// --- STATISTIQUES ADMIN ---
+if ($isAdmin) {
+    $totalUsers = (int) $pdo->query("SELECT COUNT(*) FROM utilisateur")->fetchColumn();
+    $totalPays = (int) $pdo->query("SELECT COUNT(*) FROM pays")->fetchColumn();
+}
 
-// 1. Évolution des Garanties (Filtres)
-// Par Jour (30 derniers jours)
+// --- STATISTIQUES GRAPHIQUES ---
+// 1. Évolution des Garanties
 $dataJour = $pdo->query("
     SELECT DATE_FORMAT(date_emission, '%d/%m') as date_val, COUNT(id) as count 
     FROM garantie_soumission 
@@ -34,7 +41,6 @@ $dataJour = $pdo->query("
     ORDER BY MIN(date_emission)
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-// Par Mois (12 derniers mois)
 $dataMois = $pdo->query("
     SELECT DATE_FORMAT(date_emission, '%m/%Y') as date_val, COUNT(id) as count 
     FROM garantie_soumission 
@@ -43,14 +49,12 @@ $dataMois = $pdo->query("
     ORDER BY MIN(date_emission)
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-// Par Année
 $dataAnnee = $pdo->query("
     SELECT YEAR(date_emission) as date_val, COUNT(id) as count 
     FROM garantie_soumission 
     GROUP BY date_val 
     ORDER BY date_val
 ")->fetchAll(PDO::FETCH_ASSOC);
-
 
 // 2. Statistiques Banques
 $totalBanques = (int) $pdo->query("SELECT COUNT(*) FROM banque")->fetchColumn();
@@ -60,9 +64,8 @@ $banqueData = $pdo->query("
     LEFT JOIN agence a ON b.id = a.banqueID 
     LEFT JOIN garantie_soumission g ON a.id = g.agenceID 
     GROUP BY b.id 
-    ORDER BY count DESC LIMIT 8
+    ORDER BY count DESC LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
-
 
 // 3. Statistiques Appel d'Offres (AO)
 $totalAO = (int) $pdo->query("SELECT COUNT(*) FROM appel_offre")->fetchColumn();
@@ -71,207 +74,211 @@ $aoData = $pdo->query("
     FROM appel_offre ao 
     LEFT JOIN garantie_soumission g ON ao.id = g.appel_offreID 
     GROUP BY ao.id 
-    ORDER BY count DESC LIMIT 8
+    ORDER BY count DESC LIMIT 6
 ")->fetchAll(PDO::FETCH_ASSOC);
-
-
-// Main table query (Dernières Garanties)
-$query = "
-SELECT 
-    g.id, g.num_garantie, g.montant_garantie, g.date_emission, g.date_expiration,
-    s.nom_entreprise, a.nom AS agence_nom, b.nom_banque, d.libelle AS devise,
-    st.libelle AS statut, ao.num_app_offre, DATEDIFF(g.date_expiration, :today) AS jours_restants
-FROM garantie_soumission g
-LEFT JOIN soumissionnaire s ON g.soumissionnaireID = s.id
-LEFT JOIN agence a ON g.agenceID = a.id
-LEFT JOIN banque b ON a.banqueID = b.id
-LEFT JOIN devise d ON g.deviseID = d.id
-LEFT JOIN appel_offre ao ON g.appel_offreID = ao.id
-LEFT JOIN statut st ON g.statutID = st.id
-ORDER BY g.date_emission DESC LIMIT 10
-";
-$stmt = $pdo->prepare($query); 
-$stmt->execute(['today' => $todayStr]);
-$garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<div class="content-header mb-4">
-    <h2 class="fw-bold" style="color: #486a70;"><i class="fas fa-chart-line me-2"></i>Tableau de Bord</h2>
-</div>
+<style>
+    /* Custom Dashboard Styling */
+    .dash-header-title { color: #2C3E50; font-weight: 800; letter-spacing: -0.5px; }
+    
+    .kpi-card {
+        border-radius: 16px;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(0,0,0,0.05);
+        background: #fff;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0,0,0,0.08) !important;
+    }
+    .kpi-icon-wrapper {
+        width: 56px; height: 56px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .kpi-title { font-size: 0.85rem; font-weight: 600; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px;}
+    .kpi-value { font-size: 2rem; font-weight: 800; color: #2c3e50; margin-bottom: 0; line-height: 1;}
 
-<div class="row mb-4">
-    <div class="col-md-3 mb-3 mb-md-0">
-        <div class="card text-white shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #6c757d, #495057);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+    .admin-stat-card {
+        border-radius: 10px;
+        background: #fff;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+        border-left: 4px solid #e8772b;
+        transition: transform 0.2s;
+    }
+    .admin-stat-card:hover { transform: translateX(5px); }
+
+    .chart-card {
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.05);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    }
+    .chart-header {
+        background: transparent;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        padding: 1.25rem 1.5rem;
+    }
+    .chart-title { font-weight: 700; color: #34495e; font-size: 1.1rem; margin: 0; }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="dash-header-title mb-0"><i class="fas fa-chart-pie me-2 text-primary"></i> Synthèse des Garanties</h2>
+        <div class="text-muted fw-medium"><i class="far fa-calendar-alt me-1"></i> <?php echo date('d M Y'); ?></div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-xl-3 col-md-6">
+            <div class="card kpi-card shadow-sm h-100 p-3">
+                <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
-                        <h6 class="card-title text-uppercase fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">Total Garanties</h6>
-                        <h2 class="mb-0 fw-bold"><?php echo $totalGaranties; ?></h2>
+                        <p class="kpi-title mb-2">Total Garanties</p>
+                        <h2 class="kpi-value"><?php echo number_format($totalGaranties, 0, ',', ' '); ?></h2>
                     </div>
-                    <div class="bg-white bg-opacity-25 rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <i class="fas fa-shield-alt fa-2x"></i>
+                    <div class="kpi-icon-wrapper" style="background: rgba(52, 152, 219, 0.1); color: #3498db;">
+                        <i class="fas fa-folder-open fa-2x"></i>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-3 mb-3 mb-md-0">
-        <div class="card text-white shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #198754, #146c43);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+        
+        <div class="col-xl-3 col-md-6">
+            <div class="card kpi-card shadow-sm h-100 p-3">
+                <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
-                        <h6 class="card-title text-uppercase fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">Garanties Actives</h6>
-                        <h2 class="mb-0 fw-bold"><?php echo $activeGaranties; ?></h2>
+                        <p class="kpi-title mb-2">Garanties Actives</p>
+                        <h2 class="kpi-value"><?php echo number_format($activeGaranties, 0, ',', ' '); ?></h2>
                     </div>
-                    <div class="bg-white bg-opacity-25 rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <i class="fas fa-check-circle fa-2x"></i>
+                    <div class="kpi-icon-wrapper" style="background: rgba(46, 204, 113, 0.1); color: #2ecc71;">
+                        <i class="fas fa-toggle-on fa-2x"></i>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-3 mb-3 mb-md-0">
-        <div class="card text-dark shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #ffc107, #ffb300);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+        
+        <div class="col-xl-3 col-md-6">
+            <div class="card kpi-card shadow-sm h-100 p-3">
+                <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
-                        <h6 class="card-title text-uppercase fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">Expire Bientôt</h6>
-                        <h2 class="mb-0 fw-bold"><?php echo $expiringSoon; ?></h2>
+                        <p class="kpi-title mb-2">Expire Bientôt (< 30j)</p>
+                        <h2 class="kpi-value"><?php echo number_format($expiringSoon, 0, ',', ' '); ?></h2>
                     </div>
-                    <div class="bg-dark bg-opacity-10 rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <div class="kpi-icon-wrapper" style="background: rgba(241, 196, 15, 0.1); color: #f1c40f;">
                         <i class="fas fa-exclamation-triangle fa-2x"></i>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <div class="col-md-3 mb-3 mb-md-0">
-        <div class="card text-white shadow-sm border-0 h-100" style="background: linear-gradient(135deg, #dc3545, #b02a37);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+        
+        <div class="col-xl-3 col-md-6">
+            <div class="card kpi-card shadow-sm h-100 p-3">
+                <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
-                        <h6 class="card-title text-uppercase fw-bold mb-1" style="font-size: 0.8rem; letter-spacing: 1px;">Expirées</h6>
-                        <h2 class="mb-0 fw-bold"><?php echo $expiredGaranties; ?></h2>
+                        <p class="kpi-title mb-2">Expirées / Libérées</p>
+                        <h2 class="kpi-value"><?php echo number_format($expiredGaranties, 0, ',', ' '); ?></h2>
                     </div>
-                    <div class="bg-white bg-opacity-25 rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <div class="kpi-icon-wrapper" style="background: rgba(231, 76, 60, 0.1); color: #e74c3c;">
                         <i class="fas fa-times-circle fa-2x"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12 mb-4">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <span class="fw-bold" style="color: #486a70;">
-                    <i class="fas fa-chart-area me-2"></i>Évolution des Créations de Garanties
-                </span>
-                <select id="timeFilter" class="form-select form-select-sm w-auto fw-bold" style="background-color: #f8f9fa; border-color: #dee2e6; color: #486a70;">
-                    <option value="jour">Par Jour (30 derniers)</option>
-                    <option value="mois" selected>Par Mois (12 derniers)</option>
-                    <option value="annee">Par Année (Historique)</option>
-                </select>
-            </div>
-            <div class="card-body" style="height: 320px;">
-                <canvas id="evolutionChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 mb-4 mb-md-0">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <span class="fw-bold" style="color: #486a70;">
-                    <i class="fas fa-building me-2"></i>Utilisation par Banque
-                </span>
-                <span class="badge" style="background-color: #486a70;">Total: <?php echo $totalBanques; ?> Banques</span>
-            </div>
-            <div class="card-body" style="height: 300px;">
-                <canvas id="banqueChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <span class="fw-bold" style="color: #486a70;">
-                    <i class="fas fa-file-contract me-2"></i>Garanties par Appel d'Offre (Top 8)
-                </span>
-                <span class="badge" style="background-color: #486a70;">Total: <?php echo $totalAO; ?> A.O.</span>
-            </div>
-            <div class="card-body" style="height: 300px;">
-                <canvas id="aoChart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                <h5 class="mb-0 fw-bold" style="color: #486a70;"><i class="fas fa-list me-2"></i>Dernières Garanties Ajoutées</h5>
-                <a href="index.php?page=liste-garanties" class="btn btn-sm text-white shadow-sm" style="background-color: #486a70;">Voir tout</a>
-            </div>
-            <div class="card-body p-0"> 
-                <?php if (!empty($garanties)): ?>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-3">N° Garantie</th>
-                                <th>Appel d'Offre</th>
-                                <th>Soumissionnaire</th>
-                                <th>Banque/Agence</th>
-                                <th>Montant</th>
-                                <th>Statut</th>
-                                <th class="text-center pe-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($garanties as $row): ?>
-                            <tr>
-                                <td class="ps-3"><strong style="color: #486a70;"><?php echo htmlspecialchars($row['num_garantie']); ?></strong></td>
-                                <td><span class="badge bg-light text-dark border"><?php echo htmlspecialchars($row['num_app_offre']); ?></span></td>
-                                <td class="fw-medium"><?php echo htmlspecialchars($row['nom_entreprise'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <strong><?php echo htmlspecialchars($row['nom_banque'] ?? 'N/A'); ?></strong><br>
-                                    <small class="text-muted"><?php echo htmlspecialchars($row['agence_nom'] ?? 'N/A'); ?></small>
-                                </td>
-                                <td class="fw-bold"><?php echo number_format($row['montant_garantie'], 2, ',', ' '); ?> <span class="text-muted fw-normal"><?php echo htmlspecialchars($row['devise'] ?? ''); ?></span></td>
-                                <td>
-                                    <?php 
-                                    $statutL = htmlspecialchars($row['statut'] ?? '');
-                                    $bgClass = 'bg-secondary';
-                                    if(strtolower($statutL) === 'active') $bgClass = 'bg-success';
-                                    if(strtolower($statutL) === 'expirée') $bgClass = 'bg-danger';
-                                    if(strtolower($statutL) === 'libérée') $bgClass = 'bg-info';
-                                    echo "<span class='badge $bgClass px-2 py-1 shadow-sm'>$statutL</span>";
-                                    ?>
-                                </td>
-                                <td class="text-center pe-3">
-                                    <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                        <a href="index.php?page=details-garantie&id=<?php echo $row['id']; ?>" class="btn text-white" style="background-color: #486a70;" title="Détails"><i class="fas fa-eye"></i></a>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+    <?php if ($isAdmin): ?>
+    <div class="mb-5 p-4 rounded-4" style="background: rgba(116, 166, 207, 0.16); border: 1px dashed rgba(72, 106, 112, 0.3);">
+        <h5 class="fw-bold mb-3" style="color: #486a70;"><i class="fas fa-server me-2"></i> Vue d'ensemble du Système</h5>
+        <div class="row g-3">
+            <div class="col-lg-3 col-sm-6">
+                <div class="card admin-stat-card p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 600;">UTILISATEURS</h6>
+                            <h3 class="mb-0 fw-bold" style="color: #2c3e50;"><?php echo $totalUsers; ?></h3>
+                        </div>
+                        <i class="fas fa-users fa-2x" style="color: #e8772b; opacity: 0.8;"></i>
+                    </div>
                 </div>
-                <?php else: ?>
-                <div class="p-5 text-center text-muted">
-                    <i class="fas fa-folder-open fa-3x mb-3 opacity-25"></i>
-                    <h5>Aucune garantie trouvée</h5>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="card admin-stat-card p-3" style="border-left-color: #3498db;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 600;">BANQUES</h6>
+                            <h3 class="mb-0 fw-bold" style="color: #2c3e50;"><?php echo $totalBanques; ?></h3>
+                        </div>
+                        <i class="fas fa-landmark fa-2x" style="color: #3498db; opacity: 0.8;"></i>
+                    </div>
                 </div>
-                <?php endif; ?>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="card admin-stat-card p-3" style="border-left-color: #2ecc71;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 600;">APPELS D'OFFRE</h6>
+                            <h3 class="mb-0 fw-bold" style="color: #2c3e50;"><?php echo $totalAO; ?></h3>
+                        </div>
+                        <i class="fas fa-file-contract fa-2x" style="color: #2ecc71; opacity: 0.8;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="card admin-stat-card p-3" style="border-left-color: #9b59b6;">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-1" style="font-size: 0.85rem; font-weight: 600;">PAYS ENREGISTRÉS</h6>
+                            <h3 class="mb-0 fw-bold" style="color: #2c3e50;"><?php echo $totalPays; ?></h3>
+                        </div>
+                        <i class="fas fa-globe fa-2x" style="color: #9b59b6; opacity: 0.8;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card chart-card h-100">
+                <div class="card-header chart-header d-flex justify-content-between align-items-center">
+                    <h5 class="chart-title"><i class="fas fa-chart-area me-2 text-primary"></i> Évolution des Émissions</h5>
+                    <select id="timeFilter" class="form-select form-select-sm w-auto rounded-pill shadow-sm" style="border-color: #e2e8f0; cursor: pointer;">
+                        <option value="jour">30 Derniers Jours</option>
+                        <option value="mois" selected>12 Derniers Mois</option>
+                        <option value="annee">Historique Global</option>
+                    </select>
+                </div>
+                <div class="card-body p-4" style="height: 380px;">
+                    <canvas id="evolutionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+            <div class="card chart-card h-100">
+                <div class="card-header chart-header d-flex justify-content-between align-items-center">
+                    <h5 class="chart-title"><i class="fas fa-landmark me-2 text-success"></i> Répartition par Banque</h5>
+                    <span class="badge bg-light text-secondary border rounded-pill px-3">Top 5</span>
+                </div>
+                <div class="card-body p-4 d-flex justify-content-center" style="height: 350px;">
+                    <canvas id="banqueChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card chart-card h-100">
+                <div class="card-header chart-header d-flex justify-content-between align-items-center">
+                    <h5 class="chart-title"><i class="fas fa-file-signature me-2 text-warning"></i> Garanties par Appel d'Offre</h5>
+                    <span class="badge bg-light text-secondary border rounded-pill px-3">Top 6</span>
+                </div>
+                <div class="card-body p-4" style="height: 350px;">
+                    <canvas id="aoChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -282,154 +289,179 @@ $garanties = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
-    Chart.defaults.font.family = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-    Chart.defaults.color = '#6c757d';
+    // Global Styling for modern look
+    Chart.defaults.font.family = "'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    Chart.defaults.color = '#95a5a6';
+    Chart.defaults.scale.grid.color = 'rgba(0,0,0,0.03)';
+    
+    // Smooth Tooltips
+    const tooltipOptions = {
+        backgroundColor: 'rgba(44, 62, 80, 0.9)',
+        titleFont: { size: 13, weight: 'bold' },
+        bodyFont: { size: 14 },
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true
+    };
 
     // =========================================================
-    // 1. CHART: ÉVOLUTION AVEC FILTRE
+    // 1. CHART: ÉVOLUTION (Smooth Area Line)
     // =========================================================
     const dataJour = <?php echo json_encode($dataJour); ?>;
     const dataMois = <?php echo json_encode($dataMois); ?>;
     const dataAnnee = <?php echo json_encode($dataAnnee); ?>;
 
     const ctxEvol = document.getElementById('evolutionChart').getContext('2d');
-    let evolChartInstance = null; // Stocker l'instance du graphique pour la détruire et la recréer
+    let evolChartInstance = null;
 
-    let gradientFill = ctxEvol.createLinearGradient(0, 0, 0, 300);
-    gradientFill.addColorStop(0, 'rgba(72, 106, 112, 0.4)');
-    gradientFill.addColorStop(1, 'rgba(72, 106, 112, 0.0)');
+    // Create a beautiful fade gradient for the area chart
+    let gradientEvol = ctxEvol.createLinearGradient(0, 0, 0, 400);
+    gradientEvol.addColorStop(0, 'rgba(52, 152, 219, 0.5)'); 
+    gradientEvol.addColorStop(1, 'rgba(52, 152, 219, 0.0)');
 
     function renderEvolutionChart(filterType) {
         let selectedData = [];
-        let timeLabel = '';
-
-        // Choix des données selon le filtre
-        if (filterType === 'jour') {
-            selectedData = dataJour;
-            timeLabel = 'Garanties par Jour';
-        } else if (filterType === 'mois') {
-            selectedData = dataMois;
-            timeLabel = 'Garanties par Mois';
-        } else if (filterType === 'annee') {
-            selectedData = dataAnnee;
-            timeLabel = 'Garanties par Année';
-        }
+        
+        if (filterType === 'jour') selectedData = dataJour;
+        else if (filterType === 'mois') selectedData = dataMois;
+        else if (filterType === 'annee') selectedData = dataAnnee;
 
         const labels = selectedData.map(item => item.date_val);
         const counts = selectedData.map(item => item.count);
 
-        // Détruire l'ancien graphique s'il existe
-        if (evolChartInstance) {
-            evolChartInstance.destroy();
-        }
+        if (evolChartInstance) evolChartInstance.destroy();
 
         evolChartInstance = new Chart(ctxEvol, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: timeLabel,
+                    label: 'Garanties Émises',
                     data: counts,
-                    borderColor: '#486a70',
-                    backgroundColor: gradientFill,
+                    borderColor: '#3498db',
+                    backgroundColor: gradientEvol,
                     borderWidth: 3,
-                    pointBackgroundColor: '#ffffff',
-                    pointBorderColor: '#486a70',
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#3498db',
                     pointBorderWidth: 2,
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     fill: true,
-                    tension: 0.3 // Courbe fluide
+                    tension: 0.4 // Makes lines smooth and curved
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    title: { display: true, text: `Création de Garanties (${filterType})`, font: { size: 14 } },
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: tooltipOptions
                 },
                 scales: {
-                    y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, grid: { borderDash: [5, 5] } },
-                    x: { grid: { display: false } }
-                }
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { stepSize: 1, precision: 0, padding: 10 },
+                        border: { display: false }
+                    },
+                    x: { 
+                        grid: { display: false },
+                        border: { display: false }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
             }
         });
     }
 
-    // Écouteur pour le menu déroulant (Filtre)
-    document.getElementById('timeFilter').addEventListener('change', function(e) {
-        renderEvolutionChart(e.target.value);
-    });
-
-    // Afficher le graphique 'Mois' par défaut au chargement
+    document.getElementById('timeFilter').addEventListener('change', e => renderEvolutionChart(e.target.value));
     renderEvolutionChart('mois');
 
 
     // =========================================================
-    // 2. CHART: UTILISATION PAR BANQUE (Barres Horizontales)
+    // 2. CHART: BANQUES (Modern Doughnut)
     // =========================================================
     const banqueDataRaw = <?php echo json_encode($banqueData); ?>;
     const banqueLabels = banqueDataRaw.map(item => item.nom_banque || 'Inconnu');
     const banqueCounts = banqueDataRaw.map(item => item.count);
 
     const ctxBanque = document.getElementById('banqueChart').getContext('2d');
+    
+    // Modern palette
+    const bgColors = ['#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#95a5a6'];
+
     new Chart(ctxBanque, {
-        type: 'bar', // Type bar + indexAxis = 'y' crée des barres horizontales
+        type: 'doughnut',
         data: {
             labels: banqueLabels,
             datasets: [{
-                label: 'Garanties',
                 data: banqueCounts,
-                backgroundColor: '#198754', // Vert Sonatrach
-                borderRadius: 4,
-                barPercentage: 0.7
+                backgroundColor: bgColors,
+                borderWidth: 0,
+                hoverOffset: 8
             }]
         },
         options: {
-            indexAxis: 'y', // Convertit le Bar chart en Horizontal Bar Chart
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '70%', 
             plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                x: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } },
-                y: { grid: { display: false } }
+                legend: { 
+                    position: 'right',
+                    labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+                },
+                tooltip: tooltipOptions
             }
         }
     });
 
 
     // =========================================================
-    // 3. CHART: GARANTIES PAR APPEL D'OFFRE (Barres Verticales)
+    // 3. CHART: APPEL D'OFFRE (Rounded Vertical Bars)
     // =========================================================
     const aoDataRaw = <?php echo json_encode($aoData); ?>;
     const aoLabels = aoDataRaw.map(item => item.num_app_offre || 'Sans A.O');
     const aoCounts = aoDataRaw.map(item => item.count);
 
     const ctxAo = document.getElementById('aoChart').getContext('2d');
+    
+    // Gradient for bars
+    let gradientAo = ctxAo.createLinearGradient(0, 0, 0, 400);
+    gradientAo.addColorStop(0, '#f39c12'); 
+    gradientAo.addColorStop(1, '#f1c40f'); 
+
     new Chart(ctxAo, {
         type: 'bar',
         data: {
             labels: aoLabels,
             datasets: [{
-                label: 'Nombre de Garanties',
+                label: 'Volume de Garanties',
                 data: aoCounts,
-                backgroundColor: '#ffc107', // Jaune Sonatrach
-                borderRadius: 4,
-                barPercentage: 0.6
+                backgroundColor: gradientAo,
+                borderRadius: 8, 
+                borderSkipped: false,
+                barPercentage: 0.5
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: tooltipOptions
             },
             scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } },
-                x: { grid: { display: false } }
+                y: { 
+                    beginAtZero: true, 
+                    ticks: { stepSize: 1, precision: 0, padding: 10 },
+                    border: { display: false }
+                },
+                x: { 
+                    grid: { display: false },
+                    border: { display: false }
+                }
             }
         }
     });
