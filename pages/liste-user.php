@@ -10,9 +10,9 @@ $users = $pdo->query("SELECT u.*, r.libelle as role_nom
 
 <div class="content-header mb-4">
     <div class="d-flex justify-content-between align-items-center">
-        <h2 class="page-title"><i class="fas fa-users me-2"></i>Liste des Utilisateurs</h2>
+        <h2 class="page-title"><i class="fas fa-users me-2"></i>Liste des Agents</h2>
         <a href="index.php?page=user" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
-            <i class="fas fa-plus me-2"></i>Ajouter un Utilisateur
+            <i class="fas fa-plus me-2"></i>Ajouter un Agent
         </a>
     </div>
 </div>
@@ -61,7 +61,7 @@ $users = $pdo->query("SELECT u.*, r.libelle as role_nom
             </table>
         </div>
         <?php else: ?>
-        <div class="text-center py-5"><p class="text-muted">Aucun utilisateur trouvé.</p></div>
+        <div class="text-center py-5"><p class="text-muted">Aucun agent trouvé.</p></div>
         <?php endif; ?>
     </div>
 </div>
@@ -73,7 +73,7 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
         const nom = this.dataset.nom;
         Swal.fire({
             title: 'Supprimer ?',
-            text: `Supprimer l'utilisateur "${nom}" ?`,
+            text: `Supprimer l'Agent "${nom}" ?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -89,7 +89,7 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ icon: 'success', title: 'Utilisateur supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+                        await Swal.fire({ icon: 'success', title: 'Agent supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
                         location.reload();
                     } else {
                         Swal.fire('Erreur', data.message, 'error');

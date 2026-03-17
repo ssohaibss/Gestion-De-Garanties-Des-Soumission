@@ -321,8 +321,10 @@ case 'delete_structure':
     if (strlen($nom) < 2) $errors['nom'] = "Nom trop court.";
     if (strlen($username) < 4) $errors['username'] = "Login trop court (min 4).";
    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors['email'] = "Une adresse email valide est requise.";
-    }
+    $errors['email'] = "Une adresse email valide est requise.";
+} elseif (!str_ends_with($email, '@sonatrach.com')) {
+    $errors['email'] = "L'adresse email doit être @sonatrach.com.";
+}
 
     // Validation Password (si nouveau ou si rempli en modif)
     if (!$is_update || !empty($password)) {

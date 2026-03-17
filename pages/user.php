@@ -13,13 +13,13 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
 ?>
 
 <div class="content-header mb-4">
-    <h2><i class="fas fa-user-circle me-2"></i>Gestion des Utilisateurs</h2>
+    <h2><i class="fas fa-user-circle me-2"></i>Gestion des Agents</h2>
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header text-white fw-bold" style="background-color: #486a70;">
         <i class="fas fa-user-edit me-2"></i> 
-        <span><?= $edit_data ? "Modifier : " . htmlspecialchars($edit_data['username']) : "Nouveau compte utilisateur" ?></span>
+        <span><?= $edit_data ? "Modifier : " . htmlspecialchars($edit_data['username']) : "Nouveau compte agent" ?></span>
     </div>
     <div class="card-body">
         <form id="userForm" novalidate>
@@ -47,8 +47,9 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                 <div class="col-md-6 mb-3">
                     <label class="form-label fw-bold">Email Professionnel <span class="text-danger">*</span></label>
                     <input type="email" class="form-control intel-input" name="email" id="emailInput"
-                           value="<?= $edit_data['email'] ?? '' ?>" required
-                         data-pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$" data-msg="Veuillez entrer une adresse email valide.">
+       value="<?= $edit_data['email'] ?? '' ?>" required
+       data-pattern="^[a-zA-Z0-9._%+-]+@sonatrach\.com$"
+       data-msg="L'adresse email doit être @sonatrach.com.">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -93,7 +94,7 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
             <div class="d-flex gap-2 mt-4">
                 <button type="submit" class="btn ajouter text-white shadow-sm" style="background-color: #486a70;">
                     <i class="fas <?= $edit_data ? 'fa-sync' : 'fa-save' ?> me-2"></i>
-                    <?= $edit_data ? 'Mettre à jour' : 'Enregistrer l\'utilisateur' ?>
+                    <?= $edit_data ? 'Mettre à jour' : 'Enregistrer l\'agent' ?>
                 </button>
                 <a href="index.php?page=liste-user" class="btn btn-secondary shadow-sm">Annuler</a>
             </div>
