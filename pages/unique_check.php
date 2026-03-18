@@ -17,7 +17,7 @@ $config = [
     // Configs essentielles pour tes garanties
     'garantie'         => ['table' => 'garantie_soumission', 'fields' => ['num_garantie' => 'num_garantie']],
     'amendement'       => ['table' => 'amendement',          'fields' => ['num_amendement' => 'num_amendement']],
-    'authentification' => ['table' => 'authentification',    'fields' => ['num_authentification' => 'num_authentification']]
+    'authentification' => ['table' => 'authentification',    'fields' => ['num_authentification' => 'num_authentification', 'date_authentification' => 'date_authentification']]
 ];
 
 $type  = $_REQUEST['type'] ?? ''; 
@@ -35,6 +35,36 @@ $tableName  = $config[$type]['table'];
 $columnName = $config[$type]['fields'][$field];
 
 try {
+    if ($type === 'authentification' && $field === 'date_authentification') {
+        // Retrieve the guarantee ID sent from your JavaScript
+        $garantie_id = intval($_REQUEST['garantie_soumissionID'] ?? $_REQUEST['garantie_id'] ?? 0);
+        $today = date('Y-m-d');
+        
+        // 1. Check: Date cannot be in the future
+        if ($value > $today) {
+            echo json_encode(['valid' => false, 'exists' => false, 'message' => "The date cannot be in the future."]);
+            exit;
+        }
+        
+        // 2. Check: Date cannot be older than the guarantee's emission date
+        if ($garantie_id > 0) {
+            $stmt = $pdo->prepare("SELECT date_emission FROM garantie_soumission WHERE id = ?");
+            $stmt->execute([$garantie_id]);
+            $g = $stmt->fetch();
+            
+            if ($g && $value < $g['date_emission']) {
+                echo json_encode([
+                    'valid' => false, 
+                    'exists' => false, 
+                    'message' => "The date cannot be older than the guarantee's emission date (" . date('d/m/Y', strtotime($g['date_emission'])) . ")."
+                ]);
+                exit;
+            }
+        }}
+        
+        // If the date passes all checks, return valid
+        echo json_encode(['valid' => true, 'exists' => false, 'message' => '']);
+        exit;
     // Cas spécifique agence
     if ($type === 'agence' && $field === 'nom') {
         $adresse = trim($_REQUEST['adresse'] ?? '');

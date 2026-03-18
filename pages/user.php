@@ -108,16 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('userForm');
     if (!form) return;
 
-    // --- 1. UTILS ---
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
-    // --- 2. FEEDBACK FINDER ---
+    // --- 1. FIND ERROR CONTAINER ---
     function getFeedbackElement(input) {
         let fb = input.nextElementSibling;
         if (fb && fb.classList.contains('invalid-feedback')) return fb;
@@ -130,28 +121,24 @@ document.addEventListener('DOMContentLoaded', function() {
         return null;
     }
 
-    // --- 3. LOCAL VALIDATION ---
+    // --- 2. LOCAL VALIDATION ---
     function validateField(input) {
         const val = input.value.trim();
         const fb = getFeedbackElement(input);
         
         input.classList.remove('is-invalid', 'is-valid');
 
-        // SPECIAL: Password in Edit Mode
+        // Edit mode: password can be empty
         if (input.id === 'passwordField' && document.getElementById('userId').value !== "") {
-            if (val === "") {
-                return true; 
-            }
+            if (val === "") return true; 
         }
 
-        // Required Check
         if (input.hasAttribute('required') && val === "") {
             input.classList.add('is-invalid');
             if (fb) fb.textContent = "Ce champ est requis.";
             return false;
         }
 
-        // Pattern Check
         if (val !== "" && input.hasAttribute('data-pattern')) {
             const pattern = new RegExp(input.getAttribute('data-pattern'));
             if (!pattern.test(val)) {
@@ -161,13 +148,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // Green by default
         if (val !== "") input.classList.add('is-valid');
         return true;
     }
 
-    // --- 4. SERVER UNIQUE CHECK ---
+    // --- 3. SERVER UNIQUE CHECK ---
     async function checkUniqueness(input) {
+        // If local validation fails (like missing @sonatrach.com), stop here.
         if (!validateField(input)) return false; 
 
         const val = input.value.trim();
@@ -191,33 +178,63 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (fb) fb.textContent = `Ce ${field === 'email' ? 'email' : 'login'} est déjà pris.`;
                 return false;
             } else {
-                if(!input.classList.contains('is-invalid')) input.classList.add('is-valid');
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
                 return true;
             }
-        } catch (e) { return true; }
+        } catch (e) {
+            console.error(e);
+            return true; 
+        }
     }
 
-    const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
+// --- 4. LISTENERS (CHECK WHILE TYPING) ---
 
-    // --- 5. LISTENERS ---
+    // Create a debounce function to prevent spamming the server
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Create the delayed version of our unique check (waits 500ms)
+    const debouncedUniqueCheck = debounce(async (input) => {
+        await checkUniqueness(input);
+    }, 500);
+
+    // Login (Username) Listeners
     const userIn = document.getElementById('usernameInput');
     if (userIn) {
         userIn.addEventListener('input', function() {
+            // Remove spaces
             this.value = this.value.replace(/\s/g, ''); 
-            validateField(this);
-            if (this.value.length > 0) debouncedCheck(this);
+            // 1. Check local format immediately
+            validateField(this); 
+            // 2. Check database after 500ms of no typing
+            if (this.value.length > 0) {
+                debouncedUniqueCheck(this);
+            }
         });
     }
 
+    // Email Listeners
     const emailIn = document.getElementById('emailInput');
     if (emailIn) {
         emailIn.addEventListener('input', function() {
+            // Remove spaces and lowercase
             this.value = this.value.replace(/\s/g, '').toLowerCase(); 
+            // 1. Check local format immediately (Must have @sonatrach.com)
             validateField(this);
-            if (this.value.length > 0) debouncedCheck(this);
+            // 2. Check database after 500ms (Will only trigger if format is valid!)
+            if (this.value.length > 0) {
+                debouncedUniqueCheck(this);
+            }
         });
     }
 
+    // Other inputs
     form.querySelectorAll('input, select').forEach(el => {
         if (el.id !== 'usernameInput' && el.id !== 'emailInput') {
             const evt = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -231,22 +248,24 @@ document.addEventListener('DOMContentLoaded', function() {
         f.type = f.type === 'password' ? 'text' : 'password';
         i.classList.toggle('fa-eye'); i.classList.toggle('fa-eye-slash');
     });
-
-    // --- 6. SUBMIT ---
+    // --- 5. SUBMIT ---
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         let isValid = true;
         const uniqueInputsToCheck = [];
 
+        // Run standard validation on all fields
         this.querySelectorAll('input, select').forEach(i => {
             if (!validateField(i)) isValid = false;
             if (['username', 'email'].includes(i.name)) uniqueInputsToCheck.push(i);
         });
 
+        // Run final unique checks on submit
         for (const input of uniqueInputsToCheck) {
             if (!input.classList.contains('is-invalid')) {
-                if (!await checkUniqueness(input)) isValid = false;
+                const isUnique = await checkUniqueness(input);
+                if (!isUnique) isValid = false;
             } else {
                 isValid = false;
             }
@@ -265,13 +284,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
-            const text = await res.text(); // Capture raw text first to avoid crashing
+            const text = await res.text(); 
             
             let data;
             try {
                 data = JSON.parse(text);
             } catch (err) {
-                console.error("Erreur serveur (JSON invalide):", text);
+                console.error("Erreur serveur:", text);
                 Swal.fire('Erreur technique', 'Vérifiez la console (F12) pour voir l\'erreur PHP.', 'error');
                 btn.innerHTML = oldText;
                 btn.disabled = false;
@@ -282,12 +301,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                 window.location.href = 'index.php?page=liste-user';
             } else {
-                // Safely extract the exact error message text 
                 let errorMsg = data.message || 'Validation échouée.';
                 
                 if (data.errors && typeof data.errors === 'object') {
-                    // This prevents [object Object] from happening again
                     errorMsg = Object.values(data.errors).join('<br><br>');
+                    
+                    // Force the invalid state on fields rejected by backend
+                    for (const [key, msg] of Object.entries(data.errors)) {
+                        const field = form.querySelector(`[name="${key}"]`);
+                        if (field) {
+                            field.classList.add('is-invalid');
+                            const fb = getFeedbackElement(field);
+                            if(fb) fb.textContent = msg;
+                        }
+                    }
                 }
                 
                 Swal.fire({

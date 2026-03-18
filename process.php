@@ -1016,10 +1016,32 @@ case 'delete_amendement':
 
     
 case 'authentification':
-    header('Content-Type: application/json');
+   header('Content-Type: application/json');
     
-    // --- VALIDATION DU FICHIER AVANT TOUT ---
+    $garantie_id = intval($_POST['garantie_soumissionID'] ?? 0);
+    $num_auth    = $_POST['num_authentification'] ?? '';
+    $date_auth   = $_POST['date_authentification'] ?? '';
+    
     $errors = [];
+
+    // --- NEW: DATE VALIDATIONS ---
+    $today = date('Y-m-d');
+    if (empty($date_auth)) {
+        $errors['date_authentification'] = "The authentication date is required.";
+    } elseif ($date_auth > $today) {
+        $errors['date_authentification'] = "The date cannot be in the future.";
+    } elseif ($garantie_id > 0) {
+        // Check against the guarantee's emission date
+        $stmtG = $pdo->prepare("SELECT date_emission FROM garantie_soumission WHERE id = ?");
+        $stmtG->execute([$garantie_id]);
+        $garantie = $stmtG->fetch(PDO::FETCH_ASSOC);
+        
+        if ($garantie && $date_auth < $garantie['date_emission']) {
+            $errors['date_authentification'] = "The date cannot be older than the guarantee's emission date (" . date('d/m/Y', strtotime($garantie['date_emission'])) . ").";
+        }
+    }
+
+    // --- FILE VALIDATION (Your existing code) ---
     if (!isset($_FILES['authentification_pdf']) || $_FILES['authentification_pdf']['error'] === UPLOAD_ERR_NO_FILE) {
         $errors['authentification_pdf'] = "Le document PDF est obligatoire.";
     } else {
@@ -1031,6 +1053,7 @@ case 'authentification':
         }
     }
 
+    // If there are errors, stop and return them
     if (!empty($errors)) {
         echo json_encode(['ok' => false, 'errors' => $errors]);
         exit;

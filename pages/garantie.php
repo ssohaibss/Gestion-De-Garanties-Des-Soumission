@@ -495,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
 
-    // --- CHECK DATE CONSTRAINTS ---
+   // --- CHECK DATE CONSTRAINTS ---
     function checkDateConstraints(input, type) {
         if(!currentEditingGarantie) return true;
 
@@ -506,6 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(!val) return true; 
 
         input.classList.remove('is-invalid', 'is-valid');
+        
         if (type === 'amendement_date') {
             const min = currentEditingGarantie.dateEmission;
             const max = currentEditingGarantie.dateExpirationActuelle;
@@ -531,6 +532,21 @@ document.addEventListener('DOMContentLoaded', function() {
             if (val <= currentExp) {
                 input.classList.add('is-invalid');
                 if(fb) fb.textContent = `La nouvelle date doit être postérieure à l'expiration actuelle (${new Date(currentExp).toLocaleDateString('fr-FR')}).`;
+                return false;
+            }
+        }
+        // --- NOUVEAU : LOGIQUE POUR L'AUTHENTIFICATION ---
+        else if (type === 'authentification_date') {
+            const min = currentEditingGarantie.dateEmission;
+            
+            if (val > today) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = "La date ne peut pas être dans le futur.";
+                return false;
+            }
+            if (val < min) {
+                input.classList.add('is-invalid');
+                if(fb) fb.textContent = `La date ne peut pas être antérieure à l'émission (${new Date(min).toLocaleDateString('fr-FR')}).`;
                 return false;
             }
         }
@@ -686,6 +702,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        const dateAuthInput = modalForm.querySelector('input[name="date_authentification"]');
+        if(type === 'authentification' && dateAuthInput) {
+            dateAuthInput.addEventListener('input', function() {
+                validateField(this);
+                checkDateConstraints(this, 'authentification_date');
+            });
+        }
         modalForm.querySelectorAll('.intel-input').forEach(i => {
             if(i.name !== 'num_amendement') {
                 i.addEventListener('input', function() {
@@ -711,6 +734,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if(i.name === 'nouvelle_date_expiration' && type === 'amendement' && i.offsetParent !== null) {
                     if(!checkDateConstraints(i, 'new_expiration')) mValid = false;
                 }
+                
+              if(i.name === 'date_authentification' && type === 'authentification') {
+                    if(!checkDateConstraints(i, 'authentification_date')) mValid = false;
+                }
+                // ----------------------------------------------
+
                 if(['num_amendement', 'num_authentification'].includes(i.name)) mUniqueInputs.push(i);
             });
             
