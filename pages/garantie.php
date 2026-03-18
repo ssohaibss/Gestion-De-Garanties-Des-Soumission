@@ -305,6 +305,7 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
     </div>
   </div>
 </div>
+
 <div class="modal fade" id="liberationModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -368,6 +369,7 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
     </div>
   </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('garantieForm');
@@ -494,17 +496,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
 
     // --- CHECK DATE CONSTRAINTS ---
-   function checkDateConstraints(input, type) {
-    if(!currentEditingGarantie) return true;
+    function checkDateConstraints(input, type) {
+        if(!currentEditingGarantie) return true;
 
-    const val = input.value;
-    const fb = getFeedbackElement(input);
-    const today = getTodayLocal();
+        const val = input.value;
+        const fb = getFeedbackElement(input);
+        const today = getTodayLocal();
 
-    // Do nothing if empty so we don't overwrite the error set by validateField()
-    if(!val) return true; 
+        if(!val) return true; 
 
-    input.classList.remove('is-invalid', 'is-valid');
+        input.classList.remove('is-invalid', 'is-valid');
         if (type === 'amendement_date') {
             const min = currentEditingGarantie.dateEmission;
             const max = currentEditingGarantie.dateExpirationActuelle;
@@ -581,10 +582,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // --- MAIN FORM SUBMISSION ---
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // --- FIX STATUT : REMPLISSAGE AUTOMATIQUE ---
+        // FIX STATUT : REMPLISSAGE AUTOMATIQUE
         const statutInput = document.getElementById('statutInput');
         const garantieId = document.getElementById('garantieId').value;
         if (!garantieId || garantieId === "") {
@@ -596,20 +598,33 @@ document.addEventListener('DOMContentLoaded', function() {
             if (el.type === 'file' && document.getElementById('garantieId').value !== "") return;
             if (!validateField(el)) isValid = false;
         });
+        
         if (!checkMainDates()) isValid = false;
         const numG = document.getElementById('numGarantieInput');
         if(numG && !await checkUniqueness(numG)) isValid = false;
 
-        if (form.querySelectorAll('.is-invalid').length > 0 || !isValid) return;
+        if (form.querySelectorAll('.is-invalid').length > 0 || !isValid) {
+            console.warn("Le formulaire contient des erreurs de validation.");
+            return;
+        }
         
+        // LOADING STATE
+        const btn = form.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
+
         const fd = new FormData(form);
-       try {
+        try {
             const res = await fetch('process.php', { method: 'POST', body: fd });
             const data = await res.json();
+            
             if (data.ok) {
                 location.href = 'index.php?page=liste-garanties';
             } else if (data.errors) {
-                // Associer chaque erreur à son champ respectif
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+
                 for (const [fieldName, errorMsg] of Object.entries(data.errors)) {
                     const input = form.querySelector(`[name="${fieldName}"]`);
                     if (input) {
@@ -617,13 +632,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         const fb = getFeedbackElement(input);
                         if (fb) fb.textContent = errorMsg;
                     } else {
-                        alert(errorMsg); // Si le champ n'est pas trouvé
+                        alert(errorMsg); 
                     }
                 }
             } else if (data.message) {
+                btn.innerHTML = oldText;
+                btn.disabled = false;
                 alert(data.message);
             }
-        } catch(e) {}
+        } catch(e) {
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            console.error("Erreur serveur ou de parsing JSON :", e);
+            alert("Une erreur technique s'est produite lors de l'envoi. Veuillez vérifier la console (F12).");
+        }
     });
 
     // --- MODAL LOGIC (AMENDEMENT & AUTH) ---
@@ -648,21 +670,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-      const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
+        const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
         if(type === 'amendement' && dateAmendInput) {
-    dateAmendInput.addEventListener('input', function() {
-        validateField(this); // <-- ADD THIS LINE
-        checkDateConstraints(this, 'amendement_date');
-    });
-}
+            dateAmendInput.addEventListener('input', function() {
+                validateField(this);
+                checkDateConstraints(this, 'amendement_date');
+            });
+        }
 
-const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
-if(type === 'amendement' && newExpInput) {
-    newExpInput.addEventListener('input', function() {
-        validateField(this); // <-- ADD THIS LINE
-        checkDateConstraints(this, 'new_expiration');
-    });
-}
+        const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
+        if(type === 'amendement' && newExpInput) {
+            newExpInput.addEventListener('input', function() {
+                validateField(this);
+                checkDateConstraints(this, 'new_expiration');
+            });
+        }
+
         modalForm.querySelectorAll('.intel-input').forEach(i => {
             if(i.name !== 'num_amendement') {
                 i.addEventListener('input', function() {
@@ -699,19 +722,31 @@ if(type === 'amendement' && newExpInput) {
                 }
             }
 
-            if(this.querySelectorAll('.is-invalid').length > 0 || !mValid) return; 
+            if(this.querySelectorAll('.is-invalid').length > 0 || !mValid) {
+                console.warn("Validation du modal échouée.");
+                return; 
+            }
             
+            // LOADING STATE
+            const btn = this.querySelector('button[type="submit"]');
+            const oldText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+            btn.disabled = true;
+
             const fd = new FormData(this);
             fd.append('form_type', type);
 
             try {
                 const res = await fetch('process.php', { method: 'POST', body: fd });
                 const data = await res.json();
+                
                 if (data.ok) {
                     bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
                     location.reload();
                 } else if (data.errors) {
-                    // Associer chaque erreur à son champ respectif dans le modal
+                    btn.innerHTML = oldText;
+                    btn.disabled = false;
+
                     for (const [fieldName, errorMsg] of Object.entries(data.errors)) {
                         const input = modalForm.querySelector(`[name="${fieldName}"]`);
                         if (input) {
@@ -723,9 +758,16 @@ if(type === 'amendement' && newExpInput) {
                         }
                     }
                 } else if (data.message) {
+                    btn.innerHTML = oldText;
+                    btn.disabled = false;
                     Swal.fire('Erreur', data.message, 'error');
                 }
-            } catch(e) { Swal.fire('Erreur', 'Erreur serveur', 'error'); }
+            } catch(e) {
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+                console.error("Erreur de soumission modal:", e);
+                Swal.fire('Erreur technique', 'Le serveur a renvoyé une erreur inattendue. Consultez la console (F12).', 'error');
+            }
         });
     }
 
@@ -759,44 +801,45 @@ if(type === 'amendement' && newExpInput) {
             }
         });
     }
+
     const typeLibSelect = document.getElementById('typeLiberationSelect');
     if(typeLibSelect) {
-    typeLibSelect.addEventListener('change', function() {
-        const code = this.options[this.selectedIndex]?.dataset?.code;
-        const mGroup = document.getElementById('montantLibereGroup');
-        const mInput = document.getElementById('montantLibereInput');
-        
-        mGroup.style.display = 'none';
-        mInput.removeAttribute('required');
-        mInput.classList.remove('is-invalid', 'is-valid');
-        mInput.removeAttribute('readonly');
-        
-        if (code === 'PARTIELLE') {
-            mGroup.style.display = 'block';
-            mInput.setAttribute('required', 'required');
-            mInput.value = '';
-     } else if (code === 'TOTALE') {
+        typeLibSelect.addEventListener('change', function() {
+            const code = this.options[this.selectedIndex]?.dataset?.code;
+            const mGroup = document.getElementById('montantLibereGroup');
+            const mInput = document.getElementById('montantLibereInput');
+            
+            mGroup.style.display = 'none';
+            mInput.removeAttribute('required');
+            mInput.classList.remove('is-invalid', 'is-valid');
+            mInput.removeAttribute('readonly');
+            
+            if (code === 'PARTIELLE') {
+                mGroup.style.display = 'block';
+                mInput.setAttribute('required', 'required');
+                mInput.value = '';
+            } else if (code === 'TOTALE') {
                 mGroup.style.display = 'block';
                 mInput.setAttribute('required', 'required');
                 mInput.setAttribute('readonly', 'readonly');
-                // Auto-remplir avec le reste à libérer (nouveau comportement)
                 mInput.value = currentEditingGarantie ? currentEditingGarantie.resteALiberer : '';
             }
-    });
-}
-const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
+        });
+    }
+
+    const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
     if (libDateInput) {
         libDateInput.addEventListener('change', function() {
             const today = new Date().toISOString().split('T')[0];
             const val = this.value;
-            const fb = this.nextElementSibling; // invalid-feedback
+            const fb = this.nextElementSibling;
 
             this.classList.remove('is-invalid', 'is-valid');
             
             if (val > today) {
                 this.classList.add('is-invalid');
                 if(fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
-                this.value = ""; // Optionnel : efface la date invalide
+                this.value = "";
             } else {
                 this.classList.add('is-valid');
             }
@@ -844,7 +887,7 @@ function activateEditMode(g) {
     document.getElementById('formType').value = 'update_garantie';
     document.getElementById('garantieId').value = g.id;
 
-    // --- FIX STATUT : RÉCUPÉRATION DU STATUT EXISTANT ---
+    // FIX STATUT : RÉCUPÉRATION DU STATUT EXISTANT
     document.getElementById('statutInput').value = g.statutID;
 
     document.getElementById('numGarantieInput').value = g.num_garantie;
@@ -857,21 +900,8 @@ function activateEditMode(g) {
     document.getElementById('structureSelect').value = g.structureID;
 
     document.getElementById('pdfFilesInput').removeAttribute('required');
-    // Dans activateEditMode(g), en dessous de btnAuth.style.display :
+    
     document.getElementById('btnAjouterLiberation').style.display = 'inline-block';
-
-// En bas, parmi les évènements de boutons :
-    document.getElementById('btnAjouterLiberation')?.addEventListener('click', function() {
-    if (!currentEditingGarantie) return;
-    document.getElementById('liberationGarantieId').value = currentEditingGarantie.id;
-    document.getElementById('liberationGarantieInfo').textContent = `Garantie n° ${currentEditingGarantie.numGarantie}`;
-   document.getElementById('montantMaxLibere').textContent = `${Number(currentEditingGarantie.resteALiberer).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode} (Reste à libérer)`;
-    const form = document.getElementById('liberationForm');
-    form.reset();
-    form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
-    document.getElementById('typeLiberationSelect').dispatchEvent(new Event('change'));
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('liberationModal')).show();
-});
 
     const agenceSelect = document.getElementById('agenceSelect');
     const banqueSelect = document.getElementById('banqueSelect');
@@ -922,5 +952,17 @@ document.getElementById('btnAjouterAuthentification')?.addEventListener('click',
     form.reset();
     form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
     bootstrap.Modal.getOrCreateInstance(document.getElementById('authentificationModal')).show();
+});
+
+document.getElementById('btnAjouterLiberation')?.addEventListener('click', function() {
+    if (!currentEditingGarantie) return;
+    document.getElementById('liberationGarantieId').value = currentEditingGarantie.id;
+    document.getElementById('liberationGarantieInfo').textContent = `Garantie n° ${currentEditingGarantie.numGarantie}`;
+    document.getElementById('montantMaxLibere').textContent = `${Number(currentEditingGarantie.resteALiberer).toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode} (Reste à libérer)`;
+    const form = document.getElementById('liberationForm');
+    form.reset();
+    form.querySelectorAll('.is-invalid, .is-valid').forEach(e => e.classList.remove('is-invalid','is-valid'));
+    document.getElementById('typeLiberationSelect').dispatchEvent(new Event('change'));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('liberationModal')).show();
 });
 </script>

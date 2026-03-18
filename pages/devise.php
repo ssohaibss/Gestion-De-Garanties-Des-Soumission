@@ -135,6 +135,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const inputs = this.querySelectorAll('.intel-input');
         for(const i of inputs) { if(!await checkUniqueness(i)) isValid = false; }
 
+        //Send
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
+
         if (!isValid) return;
 
         const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });

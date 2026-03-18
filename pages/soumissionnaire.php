@@ -257,6 +257,12 @@ document.addEventListener('DOMContentLoaded', function() {
         let isValid = true;
         const uniqueInputsToCheck = [];
 
+        //Send
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
+
         // Validate all fields visually first
         this.querySelectorAll('input, select, textarea').forEach(i => { 
             if(!validateField(i)) isValid = false; 

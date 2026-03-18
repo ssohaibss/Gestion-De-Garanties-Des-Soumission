@@ -133,6 +133,12 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         let isValid = true;
+
+       //Send
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
         
         // Validate all
         this.querySelectorAll('.intel-input').forEach(i => { if(!validateField(i)) isValid = false; });

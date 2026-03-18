@@ -134,6 +134,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!isValid) return;
 
+        //Send
+        const btn = this.querySelector('button[type="submit"]');
+        const oldText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
+        btn.disabled = true;
+
         const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
         const data = await res.json();
         if (data.ok) {
