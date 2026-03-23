@@ -859,19 +859,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
     if (libDateInput) {
         libDateInput.addEventListener('change', function() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getTodayLocal();
             const val = this.value;
-            const fb = this.nextElementSibling;
+            const fb = getFeedbackElement(this);
 
             this.classList.remove('is-invalid', 'is-valid');
-            
+
             if (val > today) {
                 this.classList.add('is-invalid');
-                if(fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
+                if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
                 this.value = "";
-            } else {
-                this.classList.add('is-valid');
+                return;
             }
+
+            if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
+                this.classList.add('is-invalid');
+                const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
+                if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
+                this.value = "";
+                return;
+            }
+
+            this.classList.add('is-valid');
         });
     }
 

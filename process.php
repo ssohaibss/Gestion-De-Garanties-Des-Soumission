@@ -836,18 +836,38 @@ case 'amendement':
     $nouvelle_date_expiration = !empty($_POST['nouvelle_date_expiration']) ? trim($_POST['nouvelle_date_expiration']) : null;
     $today = date('Y-m-d');
 
-    // 2. FETCH ORIGINAL DATA FOR COMPARISON
-    $original_date_x = null;
+   // 2. FETCH ORIGINAL DATA & LATEST EXPIRATION FOR COMPARISON
+    $current_expiration_date = null;
     $date_emission = null;
     $typeCode = '';
     
     if ($garantie_id > 0) {
+        // A. Get the original emission and expiration dates
         $stmtG = $pdo->prepare("SELECT date_emission, date_expiration FROM garantie_soumission WHERE id = ?");
         $stmtG->execute([$garantie_id]);
         $rowG = $stmtG->fetch(PDO::FETCH_ASSOC);
         if ($rowG) {
             $date_emission = $rowG['date_emission'];
-            $original_date_x = $rowG['date_expiration'];
+            $current_expiration_date = $rowG['date_expiration']; // Default to original expiration
+        }
+
+        // B. Check for any existing date extensions and grab the newest one
+        $stmtAmend = $pdo->prepare("
+            SELECT a.nouvelle_date_expiration 
+            FROM amendement a
+            JOIN type_amendement ta ON a.type_amendementID = ta.id
+            WHERE a.garantie_soumissionID = ? 
+            AND (ta.code = 'DATE' OR ta.code = 'MIXTE')
+            AND a.nouvelle_date_expiration IS NOT NULL
+            ORDER BY a.date_amendement DESC, a.id DESC
+            LIMIT 1
+        ");
+        $stmtAmend->execute([$garantie_id]);
+        $latestExtension = $stmtAmend->fetch(PDO::FETCH_ASSOC);
+        
+        // If a previous extension exists, override the original date with the new one
+        if ($latestExtension) {
+            $current_expiration_date = $latestExtension['nouvelle_date_expiration'];
         }
     }
 
@@ -867,18 +887,18 @@ case 'amendement':
         $checkStmt->execute([$num_amendement]);
         if ($checkStmt->fetch()) {
             $errors['num_amendement'] = "Ce numéro d'amendement est déjà utilisé dans le système.";
-        }}
+        }
+    }
 
     if (empty($date_amendement)) {
         $errors['date_amendement'] = "La date d'amendement est requise.";
     } elseif ($date_amendement > $today) {
         $errors['date_amendement'] = "La date ne peut pas être dans le futur.";
     } elseif ($date_emission && $date_amendement <= $date_emission) {
-        // NEW CONSTRAINT: Cannot be before Emission
         $errors['date_amendement'] = "La date d'amendement ne peut pas être antérieure à la date d'émission ($date_emission).";
-    }elseif ($original_date_x && $date_amendement >= $original_date_x) {
-        // NEW CONSTRAINT: Cannot be after original expiration
-        $errors['date_amendement'] = "La date d'amendement doit être avant l'ancienne date d'expiration ($original_date_x).";
+    } elseif ($current_expiration_date && $date_amendement >= $current_expiration_date) {
+        // UPDATED: Now checks against the most recent expiration date
+        $errors['date_amendement'] = "La date d'amendement doit être avant la date d'expiration actuelle (" . date('d/m/Y', strtotime($current_expiration_date)) . ").";
     }
 
     if ($type_amendementID <= 0) {
@@ -898,7 +918,6 @@ case 'amendement':
         } elseif ($file_size > 10 * 1024 * 1024) { // 10MB
             $errors['amendment_pdf'] = "Le fichier est trop volumineux (Max 10 Mo).";
         } else {
-            // Vérification de l'unicité du nom de fichier
             $checkDoc = $pdo->prepare("SELECT id FROM document WHERE nom_document = ?");
             $checkDoc->execute([$filename]);
             if ($checkDoc->fetch()) {
@@ -915,8 +934,9 @@ case 'amendement':
     if ($typeCode === 'DATE' || $typeCode === 'MIXTE') {
         if (empty($nouvelle_date_expiration)) {
             $errors['nouvelle_date_expiration'] = "La nouvelle date d'expiration est requise.";
-        } elseif ($original_date_x && $nouvelle_date_expiration <= $original_date_x) {
-            $errors['nouvelle_date_expiration'] = "La nouvelle date doit être strictement après l'ancienne expiration ($original_date_x).";
+        } elseif ($current_expiration_date && $nouvelle_date_expiration <= $current_expiration_date) {
+            // UPDATED: Forces the new date to be strictly after the current active expiration
+            $errors['nouvelle_date_expiration'] = "La nouvelle date doit être strictement après l'expiration actuelle (" . date('d/m/Y', strtotime($current_expiration_date)) . ").";
         }
     }
 
@@ -1114,14 +1134,24 @@ case 'liberation':
 
         $garantie_id = intval($_POST['garantie_soumissionID']);
         $num_lib     = trim($_POST['num_liberation'] ?? '');
-        $date_lib    = $_POST['date_liberation'];
+        $date_lib    = $_POST['date_liberation'] ?? '';
         $type_libID  = intval($_POST['type_liberationID']);
         $today       = date('Y-m-d');
+        $errors      = [];
         
+        // --- NEW: FETCH EMISSION DATE ---
+        $stmtG = $pdo->prepare("SELECT date_emission FROM garantie_soumission WHERE id = ?");
+        $stmtG->execute([$garantie_id]);
+        $garantie = $stmtG->fetch(PDO::FETCH_ASSOC);
+
         // --- VALIDATIONS ---
-     // 1. Contrainte Date Futur
-        if ($date_lib > $today) {
+        // 1. Contraintes sur la Date
+        if (empty($date_lib)) {
+            $errors['date_liberation'] = "La date de libération est requise.";
+        } elseif ($date_lib > $today) {
             $errors['date_liberation'] = "La date ne peut pas être dans le futur.";
+        } elseif ($garantie && $date_lib < $garantie['date_emission']) {
+            $errors['date_liberation'] = "La date ne peut pas être antérieure à l'émission (" . date('d/m/Y', strtotime($garantie['date_emission'])) . ").";
         }
 
         // 2. Contrainte Unicité du Fichier PDF

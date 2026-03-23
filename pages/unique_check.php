@@ -60,11 +60,12 @@ try {
                 ]);
                 exit;
             }
-        }}
+        }
         
-        // If the date passes all checks, return valid
+        
         echo json_encode(['valid' => true, 'exists' => false, 'message' => '']);
         exit;
+    }
     // Cas spécifique agence
     if ($type === 'agence' && $field === 'nom') {
         $adresse = trim($_REQUEST['adresse'] ?? '');

@@ -21,9 +21,19 @@ $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expir
 $stmt->execute(['today' => $todayStr, 'limit' => $in30DaysStr]);
 $expiringSoon = (int) $stmt->fetchColumn();
 
+// Card 4: Expirées global
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expiration < :today OR statutID = 2");
 $stmt->execute(['today' => $todayStr]);
 $expiredGaranties = (int) $stmt->fetchColumn();
+
+// --- DATA POUR LE NOUVEAU GRAPHIQUE (STATUTS) ---
+// À libérer (Expirées mais non libérées)
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE (date_expiration < :today OR statutID = 2) AND statutID != 3");
+$stmt->execute(['today' => $todayStr]);
+$toBeLiberatedGaranties = (int) $stmt->fetchColumn();
+
+// Libérées (Statut 3)
+$liberatedGaranties = (int) $pdo->query("SELECT COUNT(*) FROM garantie_soumission WHERE statutID = 3")->fetchColumn();
 
 // --- STATISTIQUES ADMIN ---
 if ($isAdmin) {
@@ -239,8 +249,8 @@ $aoData = $pdo->query("
     </div>
     <?php endif; ?>
 
-    <div class="row mb-4">
-        <div class="col-12">
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
             <div class="card chart-card h-100">
                 <div class="card-header chart-header d-flex justify-content-between align-items-center">
                     <h5 class="chart-title"><i class="fas fa-chart-area me-2 text-primary"></i> Évolution des Émissions</h5>
@@ -252,6 +262,39 @@ $aoData = $pdo->query("
                 </div>
                 <div class="card-body p-4" style="height: 380px;">
                     <canvas id="evolutionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card chart-card h-100">
+                <div class="card-header chart-header d-flex justify-content-between align-items-center">
+                    <h5 class="chart-title"><i class="fas fa-unlock-alt me-2" style="color: #9b59b6;"></i> État d'Avancement</h5>
+                    <span class="badge bg-light text-primary border rounded-pill px-3 py-2">Total : <?php echo number_format($totalGaranties, 0, ',', ' '); ?></span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="position-relative d-flex justify-content-center align-items-center" style="height: 200px;">
+                        <canvas id="statutChart"></canvas>
+                        <div class="position-absolute text-center mt-2" style="pointer-events: none;">
+                            <h2 class="mb-0 fw-bolder" style="color: #2c3e50; font-size: 2.5rem;"><?php echo $totalGaranties; ?></h2>
+                            <span class="text-muted fw-bold" style="font-size: 0.75rem; letter-spacing: 1px;">TOTAL</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-2 border-top">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #2ecc71; font-size: 0.6rem;"></i>Garanties Actives</span>
+                            <span class="fw-bold text-dark fs-5"><?php echo $activeGaranties; ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #f39c12; font-size: 0.6rem;"></i>À Libérer (Expirées)</span>
+                            <span class="fw-bold text-dark fs-5"><?php echo $toBeLiberatedGaranties; ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #3498db; font-size: 0.6rem;"></i>Garanties Libérées</span>
+                            <span class="fw-bold text-dark fs-5"><?php echo $liberatedGaranties; ?></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -314,7 +357,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const ctxEvol = document.getElementById('evolutionChart').getContext('2d');
     let evolChartInstance = null;
 
-    // Create a beautiful fade gradient for the area chart
     let gradientEvol = ctxEvol.createLinearGradient(0, 0, 0, 400);
     gradientEvol.addColorStop(0, 'rgba(52, 152, 219, 0.5)'); 
     gradientEvol.addColorStop(1, 'rgba(52, 152, 219, 0.0)');
@@ -347,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     pointRadius: 4,
                     pointHoverRadius: 6,
                     fill: true,
-                    tension: 0.4 // Makes lines smooth and curved
+                    tension: 0.4
                 }]
             },
             options: {
@@ -381,15 +423,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // =========================================================
-    // 2. CHART: BANQUES (Modern Doughnut)
+    // 2. CHART: STATUT DES GARANTIES (Nouveau)
+    // =========================================================
+    const ctxStatut = document.getElementById('statutChart').getContext('2d');
+    
+    new Chart(ctxStatut, {
+        type: 'doughnut',
+        data: {
+            labels: ['Actives', 'À Libérer', 'Libérées'],
+            datasets: [{
+                data: [
+                    <?php echo $activeGaranties; ?>, 
+                    <?php echo $toBeLiberatedGaranties; ?>, 
+                    <?php echo $liberatedGaranties; ?>
+                ],
+                backgroundColor: ['#2ecc71', '#f39c12', '#3498db'],
+                borderWidth: 0,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '80%', // Increased cutout to make room for center text
+            plugins: {
+                legend: { 
+                    display: false // Hidden because we built a custom numerical legend in HTML
+                },
+                tooltip: tooltipOptions
+            }
+        }
+    });
+
+
+    // =========================================================
+    // 3. CHART: BANQUES (Modern Doughnut)
     // =========================================================
     const banqueDataRaw = <?php echo json_encode($banqueData); ?>;
     const banqueLabels = banqueDataRaw.map(item => item.nom_banque || 'Inconnu');
     const banqueCounts = banqueDataRaw.map(item => item.count);
 
     const ctxBanque = document.getElementById('banqueChart').getContext('2d');
-    
-    // Modern palette
     const bgColors = ['#2ecc71', '#3498db', '#9b59b6', '#f1c40f', '#e67e22', '#95a5a6'];
 
     new Chart(ctxBanque, {
@@ -419,7 +493,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // =========================================================
-    // 3. CHART: APPEL D'OFFRE (Rounded Vertical Bars)
+    // 4. CHART: APPEL D'OFFRE (Rounded Vertical Bars)
     // =========================================================
     const aoDataRaw = <?php echo json_encode($aoData); ?>;
     const aoLabels = aoDataRaw.map(item => item.num_app_offre || 'Sans A.O');
@@ -427,7 +501,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const ctxAo = document.getElementById('aoChart').getContext('2d');
     
-    // Gradient for bars
     let gradientAo = ctxAo.createLinearGradient(0, 0, 0, 400);
     gradientAo.addColorStop(0, '#f39c12'); 
     gradientAo.addColorStop(1, '#f1c40f'); 
