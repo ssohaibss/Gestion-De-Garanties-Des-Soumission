@@ -42,7 +42,7 @@ $users = $pdo->query("SELECT u.*, r.libelle as role_nom
                         </td>
                         <td><code><?= htmlspecialchars($u['username']) ?></code></td>
                         <td><?= htmlspecialchars($u['email']) ?></td>
-                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($u['role_nom'] ?? 'Utilisateur') ?></span></td>
+                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($u['role_nom'] ?? 'Agent') ?></span></td>
                         <td class="text-center">
                             <div class="btn-group shadow-sm">
                                 <a href="index.php?page=user&edit=<?= $u['id'] ?>" class="btn btn-sm text-white" style="background-color: #486a70;">

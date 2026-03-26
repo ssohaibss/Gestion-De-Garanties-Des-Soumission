@@ -857,33 +857,89 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
-    if (libDateInput) {
-        libDateInput.addEventListener('change', function() {
-            const today = getTodayLocal();
-            const val = this.value;
-            const fb = getFeedbackElement(this);
 
-            this.classList.remove('is-invalid', 'is-valid');
+if (libDateInput) {
+    libDateInput.addEventListener('input', function() {
+        const val = this.value;
+        const fb = getFeedbackElement(this);
+        const today = getTodayLocal(); // Ensure this returns "YYYY-MM-DD"
 
-            if (val > today) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
-                this.value = "";
-                return;
-            }
+        // 1. Reset UI immediately as they type
+        this.classList.remove('is-invalid', 'is-valid');
+        if (fb) fb.textContent = "";
 
-            if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
-                this.classList.add('is-invalid');
-                const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
-                if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
-                this.value = "";
-                return;
-            }
+        // 2. ONLY validate if the date string is complete (YYYY-MM-DD = 10 chars)
+        // This prevents the "buggy" behavior while the user is mid-typing.
+        if (val.length < 10) return;
 
+        // 3. Validation Logic
+        let hasError = false;
+
+        // Future Date Check
+        if (val > today) {
+            this.classList.add('is-invalid');
+            if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
+            hasError = true;
+        } 
+        // Emission Date Check
+        else if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
+            this.classList.add('is-invalid');
+            const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
+            if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
+            hasError = true;
+        }
+
+        // 4. If everything is fine, show success
+        if (!hasError) {
             this.classList.add('is-valid');
-        });
-    }
+        }
+    });
+}
+// Sélectionner l'input du numéro de libération
+const numLiberationInput = document.querySelector('#liberationForm input[name="num_liberation"]') || document.querySelector('input[name="num_liberation"]');
 
+if (numLiberationInput) {
+    // 1. Vérification au moment où l'utilisateur quitte le champ (blur)
+    numLiberationInput.addEventListener('blur', async function() {
+        const val = this.value.trim();
+        const fb = getFeedbackElement(this); // Utilise ta fonction existante pour récupérer le message d'erreur
+        
+        // Récupérer l'ID actuel si on est en mode modification (pour ne pas bloquer le numéro actuel)
+        // Assure-toi que cette variable correspond à celle que tu utilises dans ton application
+        const currentId = window.currentEditingLiberationId ? window.currentEditingLiberationId : 0; 
+
+        // Réinitialiser les classes CSS et le message
+        this.classList.remove('is-invalid', 'is-valid');
+        if (fb) fb.textContent = "";
+
+        // Ne rien faire si le champ est vide
+        if (!val) return;
+
+        try {
+            // Appeler ton fichier PHP pour vérifier l'unicité
+            const response = await fetch(`pages/unique_check.php?type=liberation&field=num_liberation&value=${encodeURIComponent(val)}&id=${currentId}`);
+            const data = await response.json();
+
+            if (data.exists) {
+                // Si le numéro existe déjà en base de données, on affiche l'erreur
+                this.classList.add('is-invalid');
+                if (fb) fb.textContent = "Ce numéro de libération existe déjà. Veuillez en choisir un autre.";
+            } else {
+                // Si le numéro est disponible
+                this.classList.add('is-valid');
+            }
+        } catch (error) {
+            console.error("Erreur lors de la vérification de l'unicité:", error);
+        }
+    });
+
+    // 2. Nettoyage immédiat dès que l'utilisateur commence à taper pour corriger
+    numLiberationInput.addEventListener('input', function() {
+        this.classList.remove('is-invalid');
+        const fb = getFeedbackElement(this);
+        if (fb) fb.textContent = "";
+    });
+}
     function handlePdfPreview(input, container) {
         container.innerHTML = '';
         if (input.files.length === 0) return;

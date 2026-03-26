@@ -17,7 +17,8 @@ $config = [
     // Configs essentielles pour tes garanties
     'garantie'         => ['table' => 'garantie_soumission', 'fields' => ['num_garantie' => 'num_garantie']],
     'amendement'       => ['table' => 'amendement',          'fields' => ['num_amendement' => 'num_amendement']],
-    'authentification' => ['table' => 'authentification',    'fields' => ['num_authentification' => 'num_authentification', 'date_authentification' => 'date_authentification']]
+    'authentification' => ['table' => 'authentification',    'fields' => ['num_authentification' => 'num_authentification', 'date_authentification' => 'date_authentification']],
+    'liberation'       => ['table' => 'liberation',          'fields' => ['num_liberation' => 'num_liberation']]
 ];
 
 $type  = $_REQUEST['type'] ?? ''; 
