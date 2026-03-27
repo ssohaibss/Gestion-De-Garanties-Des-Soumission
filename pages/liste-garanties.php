@@ -2,6 +2,25 @@
 require_once dirname(__DIR__) . '/database.php';
 $pdo = getDBConnection();
 
+function updateExpiredGuarantees($pdo) {
+    try {
+        $today = date('Y-m-d');
+        $sql = "UPDATE garantie_soumission 
+                SET statutID = 2 
+                WHERE statutID = 1 
+                AND date_expiration < ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$today]);
+        return $stmt->rowCount();
+    } catch (Exception $e) {
+        error_log("Auto-update expired guarantees failed: " . $e->getMessage());
+        return 0;
+    }
+}
+$updated = updateExpiredGuarantees($pdo);
+if ($updated > 0) {
+    error_log("✅ {$updated} garanties expirées mises à jour automatiquement");
+}
 // Requête intégrant la logique d'authentification EXACTEMENT comme l'amendement
 $query = "SELECT 
     g.id,

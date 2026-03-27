@@ -24,6 +24,9 @@ foreach ($statuts as $s) {
         $status_expired = ['id' => $s['Id'], 'libelle' => $s['libelle']];
     }
 }
+if (empty($status_active['id'])) {
+    $status_active = ['id' => 1, 'libelle' => 'Active']; // Default to ID 1
+}
 
 // 2. Logique AUTO-EDIT (Mise à jour pour inclure les totaux CALCULÉS)
 $edit_data = null;
@@ -75,10 +78,10 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
             <div class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Numéro de Garantie <span class="text-danger">*</span></label>
-                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control intel-input" 
-                           placeholder="Chiffres uniquement" maxlength="20" required
-                           data-pattern="^[0-9]+$" 
-                           data-msg="Ce champ doit contenir uniquement des chiffres.">
+                    <input type="text" name="num_garantie" id="numGarantieInput" class="form-control text-uppercase intel-input" 
+                           placeholder="XX/XXXX/XXXX" maxlength="12" required
+                           data-pattern="^[A-Z0-9]{2}/[A-Z0-9]{4}/[A-Z0-9]{4}$" 
+                           data-msg="Le format doit être exactement XX/XXXX/XXXX.">
                     <div class="invalid-feedback"></div>
                 </div>
 
@@ -125,9 +128,9 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-bold">Appel d'Offre lié</label>
-                    <select name="appel_offreID" id="aoSelect" class="form-select standard-input">
-                        <option value="">Aucun</option>
+                    <label class="form-label fw-bold">Appel d'Offre lié <span class="text-danger">*</span></label>
+                    <select name="appel_offreID" id="aoSelect" class="form-select standard-input" required>
+                        <option value="">Sélectionner un Appel d'Offre...</option>
                         <?php foreach($appels_offre as $ao): ?>
                             <option value="<?= $ao['Id'] ?>"><?= htmlspecialchars($ao['num_app_offre']) ?></option>
                         <?php endforeach; ?>
@@ -210,8 +213,10 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Numéro d'Amendement <span class="text-danger">*</span></label>
-                            <input type="text" name="num_amendement" class="form-control intel-input" 
-                                   placeholder="Numéro unique" required data-pattern="^[0-9]+$" data-msg="Numérique uniquement.">
+                            <input type="text" name="num_amendement" class="form-control text-uppercase intel-input" 
+                                        placeholder="XX/XXXX/XXXX" maxlength="12" required 
+                                        data-pattern="^[A-Z0-9]{2}/[A-Z0-9]{4}/[A-Z0-9]{4}$" 
+                                        data-msg="Le format doit être exactement XX/XXXX/XXXX.">
                             <div class="invalid-feedback"></div>
                         </div>
                         <div class="col-md-6">
@@ -280,8 +285,10 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label fw-bold">Numéro <span class="text-danger">*</span></label>
-              <input type="text" name="num_authentification" class="form-control intel-input"
-                placeholder="Numéro unique" required data-pattern="^[0-9A-Za-z\-]+$" data-msg="Alphanumérique uniquement.">
+              <input type="text" name="num_authentification" class="form-control text-uppercase intel-input"
+                        placeholder="XX/XXXX/XXXX" maxlength="12" required 
+                        data-pattern="^[A-Z0-9]{2}/[A-Z0-9]{4}/[A-Z0-9]{4}$" 
+                        data-msg="Le format doit être exactement XX/XXXX/XXXX.">
               <div class="invalid-feedback"></div>
             </div>
             <div class="col-md-6">
@@ -323,8 +330,10 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label fw-bold">Numéro <span class="text-danger">*</span></label>
-              <input type="text" name="num_liberation" class="form-control intel-input"
-                placeholder="Numéro unique" required data-pattern="^[0-9]+$" data-msg="Chiffres uniquement.">
+              <input type="text" name="num_liberation" class="form-control text-uppercase intel-input"
+                        placeholder="XX/XXXX/XXXX" maxlength="12" required 
+                        data-pattern="^[A-Z0-9]{2}/[A-Z0-9]{4}/[A-Z0-9]{4}$" 
+                        data-msg="Le format doit être exactement XX/XXXX/XXXX.">
               <div class="invalid-feedback"></div>
             </div>
             <div class="col-md-4">
@@ -371,12 +380,31 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
 </div>
 
 <script>
+
+    async function checkExpiredGuarantees() {
+    try {
+        const res = await fetch('process.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'form_type=update_expired_status'
+        });
+        const data = await res.json();
+        if (data.ok && data.updated > 0) {
+            console.log(`✅ ${data.updated} garanties expirées mises à jour`);
+            location.reload(); // Refresh to show updated status
+        }
+    } catch (e) {
+        console.error("Erreur vérification expiration:", e);
+    }
+}
+
+    const STATUS_ACTIVE = <?= json_encode($status_active) ?>;
+    const STATUS_EXPIRED = <?= json_encode($status_expired) ?>;
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('garantieForm');
     
     // --- VARIABLES STATUT (Injection SÉCURISÉE) ---
-    const STATUS_ACTIVE = <?= json_encode($status_active) ?>;
-    const STATUS_EXPIRED = <?= json_encode($status_expired) ?>;
+    
 
     // --- HELPER DATE LOCALE (YYYY-MM-DD) ---
     function getTodayLocal() {
@@ -583,7 +611,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     form.querySelectorAll('.intel-input').forEach(i => {
         i.addEventListener('input', function() {
-            if(this.name === 'num_garantie') this.value = this.value.replace(/[^0-9]/g, '');
+            if(this.name === 'num_garantie') {
+                this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/]/g, '');
+            }
             validateField(this);
             if(this.name === 'num_garantie' && this.value) debouncedCheck(this);
         });
@@ -619,8 +649,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const numG = document.getElementById('numGarantieInput');
         if(numG && !await checkUniqueness(numG)) isValid = false;
 
+        // ALERTE POUR NE PLUS ECHOUER EN SILENCE
         if (form.querySelectorAll('.is-invalid').length > 0 || !isValid) {
-            console.warn("Le formulaire contient des erreurs de validation.");
+            Swal.fire({
+                icon: 'warning',
+                title: 'Formulaire incomplet',
+                text: 'Certains champs sont invalides ou manquants. Veuillez vérifier les champs en rouge (notamment l\'Appel d\'Offre).',
+                confirmButtonText: 'Compris'
+            });
             return;
         }
         
@@ -648,19 +684,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         const fb = getFeedbackElement(input);
                         if (fb) fb.textContent = errorMsg;
                     } else {
-                        alert(errorMsg); 
+                        Swal.fire('Erreur', errorMsg, 'error'); 
                     }
                 }
             } else if (data.message) {
                 btn.innerHTML = oldText;
                 btn.disabled = false;
-                alert(data.message);
+                Swal.fire('Attention', data.message, 'warning');
             }
         } catch(e) {
             btn.innerHTML = oldText;
             btn.disabled = false;
             console.error("Erreur serveur ou de parsing JSON :", e);
-            alert("Une erreur technique s'est produite lors de l'envoi. Veuillez vérifier la console (F12).");
+            Swal.fire('Erreur technique', 'Le serveur a renvoyé une erreur. Veuillez vérifier votre console (F12).', 'error');
         }
     });
 
@@ -676,15 +712,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const mPdfInput = modalForm.querySelector('input[type="file"]');
         const mPdfPrev = modalForm.querySelector('div[id$="Preview"]');
         if(mPdfInput && mPdfPrev) mPdfInput.addEventListener('change', function() { handlePdfPreview(this, mPdfPrev); });
-
-        const numAmendInput = modalForm.querySelector('input[name="num_amendement"]');
-        if(numAmendInput) {
-            numAmendInput.addEventListener('input', function() {
-                this.value = this.value.replace(/[^0-9]/g, '');
-                validateField(this);
-                if(this.value) debouncedCheck(this);
-            });
-        }
 
         const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
         if(type === 'amendement' && dateAmendInput) {
@@ -709,15 +736,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 checkDateConstraints(this, 'authentification_date');
             });
         }
+        
         modalForm.querySelectorAll('.intel-input').forEach(i => {
-            if(i.name !== 'num_amendement') {
-                i.addEventListener('input', function() {
-                     if (this.name === 'num_authentification') this.value = this.value.replace(/[^0-9A-Za-z\-]/g, '');
-                     if (this.name === 'nouveau_montant') this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-                     validateField(this);
-                     if (this.value !== "" && !this.classList.contains('is-invalid')) debouncedCheck(this);
-                });
-            }
+            i.addEventListener('input', function() {
+                if (['num_amendement', 'num_authentification', 'num_liberation'].includes(this.name)) {
+                    this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/]/g, '');
+                }
+                if (this.name === 'nouveau_montant' || this.name === 'montant_libere') {
+                    this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+                }
+                validateField(this);
+                if (this.value !== "" && !this.classList.contains('is-invalid')) debouncedCheck(this);
+            });
             i.addEventListener('blur', function() { checkUniqueness(this); });
         });
 
@@ -734,13 +764,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if(i.name === 'nouvelle_date_expiration' && type === 'amendement' && i.offsetParent !== null) {
                     if(!checkDateConstraints(i, 'new_expiration')) mValid = false;
                 }
-                
-              if(i.name === 'date_authentification' && type === 'authentification') {
+                if(i.name === 'date_authentification' && type === 'authentification') {
                     if(!checkDateConstraints(i, 'authentification_date')) mValid = false;
                 }
-                // ----------------------------------------------
-
-                if(['num_amendement', 'num_authentification'].includes(i.name)) mUniqueInputs.push(i);
+                if(['num_amendement', 'num_authentification', 'num_liberation'].includes(i.name)) mUniqueInputs.push(i);
             });
             
             for(const inp of mUniqueInputs) {
@@ -752,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if(this.querySelectorAll('.is-invalid').length > 0 || !mValid) {
-                console.warn("Validation du modal échouée.");
+                Swal.fire('Erreur', 'Veuillez corriger les champs en rouge avant de soumettre.', 'warning');
                 return; 
             }
             
@@ -857,89 +884,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
+    if (libDateInput) {
+        libDateInput.addEventListener('input', function() {
+            const val = this.value;
+            const fb = getFeedbackElement(this);
+            const today = getTodayLocal(); 
+            this.classList.remove('is-invalid', 'is-valid');
+            if (fb) fb.textContent = "";
+            if (val.length < 10) return;
 
-if (libDateInput) {
-    libDateInput.addEventListener('input', function() {
-        const val = this.value;
-        const fb = getFeedbackElement(this);
-        const today = getTodayLocal(); // Ensure this returns "YYYY-MM-DD"
-
-        // 1. Reset UI immediately as they type
-        this.classList.remove('is-invalid', 'is-valid');
-        if (fb) fb.textContent = "";
-
-        // 2. ONLY validate if the date string is complete (YYYY-MM-DD = 10 chars)
-        // This prevents the "buggy" behavior while the user is mid-typing.
-        if (val.length < 10) return;
-
-        // 3. Validation Logic
-        let hasError = false;
-
-        // Future Date Check
-        if (val > today) {
-            this.classList.add('is-invalid');
-            if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
-            hasError = true;
-        } 
-        // Emission Date Check
-        else if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
-            this.classList.add('is-invalid');
-            const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
-            if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
-            hasError = true;
-        }
-
-        // 4. If everything is fine, show success
-        if (!hasError) {
-            this.classList.add('is-valid');
-        }
-    });
-}
-// Sélectionner l'input du numéro de libération
-const numLiberationInput = document.querySelector('#liberationForm input[name="num_liberation"]') || document.querySelector('input[name="num_liberation"]');
-
-if (numLiberationInput) {
-    // 1. Vérification au moment où l'utilisateur quitte le champ (blur)
-    numLiberationInput.addEventListener('blur', async function() {
-        const val = this.value.trim();
-        const fb = getFeedbackElement(this); // Utilise ta fonction existante pour récupérer le message d'erreur
-        
-        // Récupérer l'ID actuel si on est en mode modification (pour ne pas bloquer le numéro actuel)
-        // Assure-toi que cette variable correspond à celle que tu utilises dans ton application
-        const currentId = window.currentEditingLiberationId ? window.currentEditingLiberationId : 0; 
-
-        // Réinitialiser les classes CSS et le message
-        this.classList.remove('is-invalid', 'is-valid');
-        if (fb) fb.textContent = "";
-
-        // Ne rien faire si le champ est vide
-        if (!val) return;
-
-        try {
-            // Appeler ton fichier PHP pour vérifier l'unicité
-            const response = await fetch(`pages/unique_check.php?type=liberation&field=num_liberation&value=${encodeURIComponent(val)}&id=${currentId}`);
-            const data = await response.json();
-
-            if (data.exists) {
-                // Si le numéro existe déjà en base de données, on affiche l'erreur
+            let hasError = false;
+            if (val > today) {
                 this.classList.add('is-invalid');
-                if (fb) fb.textContent = "Ce numéro de libération existe déjà. Veuillez en choisir un autre.";
-            } else {
-                // Si le numéro est disponible
+                if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
+                hasError = true;
+            } else if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
+                this.classList.add('is-invalid');
+                const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
+                if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
+                hasError = true;
+            }
+
+            if (!hasError) {
                 this.classList.add('is-valid');
             }
-        } catch (error) {
-            console.error("Erreur lors de la vérification de l'unicité:", error);
-        }
-    });
+        });
+    }
 
-    // 2. Nettoyage immédiat dès que l'utilisateur commence à taper pour corriger
-    numLiberationInput.addEventListener('input', function() {
-        this.classList.remove('is-invalid');
-        const fb = getFeedbackElement(this);
-        if (fb) fb.textContent = "";
-    });
-}
     function handlePdfPreview(input, container) {
         container.innerHTML = '';
         if (input.files.length === 0) return;

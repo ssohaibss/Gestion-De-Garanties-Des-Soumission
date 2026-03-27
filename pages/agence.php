@@ -28,10 +28,10 @@ $banques = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Code Agence <span class="text-danger">*</span></label>
-                    <input type="text" name="code" id="agenceCode" class="form-control intel-input text-uppercase" 
-                           value="<?= $edit_data['code'] ?? '' ?>" required
-                           data-pattern="^[A-Z0-9\-]{3,10}$" 
-                           data-msg="3-10 car. (Lettres, chiffres, tirets).">
+                   <input type="text" name="code" id="agenceCode" class="form-control intel-input text-uppercase" 
+                              value="<?= $edit_data['code'] ?? '' ?>" required
+                            data-pattern="^[A-Z0-9]+-[0-9]{1,4}$" 
+                            data-msg="Format : CODEBANQUE-XXXX (Chiffres uniquement après le tiret).">
                     <div class="invalid-feedback"></div>
                 </div>
                 <div class="col-md-8 mb-3">
@@ -48,12 +48,12 @@ $banques = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll
                 <div class="col-md-6 mb-3">
                     <label class="form-label fw-bold">Banque <span class="text-danger">*</span></label>
                     <select class="form-select" name="banqueID" id="banqueID" required>
-                        <option value="">Sélectionner une banque</option>
+                                <option value="" data-code="">Sélectionner une banque</option>
                         <?php foreach ($banques as $b): ?>
-                            <option value="<?= $b['id'] ?>" <?= (isset($edit_data['banqueID']) && $edit_data['banqueID'] == $b['id']) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($b['nom_banque']) ?> (<?= htmlspecialchars($b['code']) ?>)
-                            </option>
-                        <?php endforeach; ?>
+                     <option value="<?= $b['id'] ?>" data-code="<?= htmlspecialchars($b['code']) ?>" <?= (isset($edit_data['banqueID']) && $edit_data['banqueID'] == $b['id']) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($b['nom_banque']) ?> (<?= htmlspecialchars($b['code']) ?>)
+                </option>
+                <?php endforeach; ?>
                     </select>
                     <div class="invalid-feedback">Veuillez choisir une banque.</div>
                 </div>
@@ -123,10 +123,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (input.name !== 'code' && input.name !== 'nom') return true;
 
         try {
-            // CORRECTION: Ajout de banqueID et adresse pour le contexte
             let params = `type=agence&field=${input.name}&value=${encodeURIComponent(val)}&id=${idVal}`;
             
-            // Si on check le NOM, on ajoute les infos contextuelles pour unique_check.php
             if(input.name === 'nom') {
                 const banqueID = document.querySelector('select[name="banqueID"]').value;
                 const adresse = document.getElementById('agenceAdresse').value;
@@ -150,37 +148,127 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const debouncedCheck = debounce((input) => checkUniqueness(input), 500);
 
-    // --- Listeners ---
-    document.getElementById('agenceCode').addEventListener('input', function() {
-        this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\-]/g, '');
-        validateField(this);
-        if (this.value) debouncedCheck(this);
-    });
+   // --- Listeners ---
+    const banqueSelect = document.getElementById('banqueID');
+    const agenceCodeInput = document.getElementById('agenceCode');
+    const nomInput = document.getElementById('agenceNom');
 
-    ['agenceNom', 'agenceAdresse'].forEach(id => {
-        document.getElementById(id).addEventListener('input', function() {
-            let val = this.value.replace(/ {2,}/g, ' '); 
-            if (val.startsWith(' ')) val = val.trimStart();
-            this.value = val;
+    if (banqueSelect && agenceCodeInput) {
+        // Fonction pour bloquer/débloquer le champ Code Agence
+        const toggleCodeInput = () => {
+            if (banqueSelect.value === "") {
+                agenceCodeInput.setAttribute('readonly', 'readonly');
+                agenceCodeInput.placeholder = "Sélectionnez une banque d'abord";
+            } else {
+                agenceCodeInput.removeAttribute('readonly');
+                agenceCodeInput.placeholder = "EX: BNA-012";
+                // Retire le message d'erreur si la banque vient d'être sélectionnée
+                if(agenceCodeInput.classList.contains('is-invalid') && agenceCodeInput.value === "") {
+                    agenceCodeInput.classList.remove('is-invalid');
+                }
+            }
+        };
+
+        // Appliquer l'état initial (bloqué par défaut, sauf en mode édition)
+        toggleCodeInput();
+
+        // Événement : Changement de la banque
+        banqueSelect.addEventListener('change', function() {
+            toggleCodeInput(); // Met à jour l'état (bloqué/débloqué)
             
-            validateField(this);
-            // On re-check le nom si l'adresse change (car unicité combinée)
-            if (this.name === 'nom' && this.value) debouncedCheck(this);
-            if (this.name === 'adresse') {
-                const nomInput = document.getElementById('agenceNom');
-                if(nomInput.value) debouncedCheck(nomInput);
+            const selectedOption = this.options[this.selectedIndex];
+            const bankCode = selectedOption.getAttribute('data-code');
+            
+            if (bankCode) {
+                let currentVal = agenceCodeInput.value;
+                let suffix = '';
+                // Conserver la partie après le tiret si elle existe déjà
+                if (currentVal.includes('-')) {
+                    suffix = currentVal.substring(currentVal.indexOf('-') + 1);
+                }
+                agenceCodeInput.value = bankCode + '-' + suffix;
+            } else {
+                agenceCodeInput.value = '';
+                agenceCodeInput.classList.remove('is-valid', 'is-invalid');
+            }
+            
+            if (agenceCodeInput.value) validateField(agenceCodeInput);
+            if (nomInput && nomInput.value) debouncedCheck(nomInput);
+        });
+
+        // Événement : Clic sur le champ Code Agence sans avoir choisi de banque
+        agenceCodeInput.addEventListener('click', function() {
+            if (banqueSelect.value === "") {
+                this.classList.add('is-invalid');
+                const fb = this.parentElement.querySelector('.invalid-feedback');
+                if (fb) fb.textContent = "Veuillez d'abord sélectionner une banque de la liste.";
             }
         });
-    });
 
-    // Re-check nom si la banque change
-    const banqueSelect = document.querySelector('select[name="banqueID"]');
-    if(banqueSelect) {
-        banqueSelect.addEventListener('change', function() {
-            const nomInput = document.getElementById('agenceNom');
-            if(nomInput.value) debouncedCheck(nomInput);
+       // Événement : Saisie dans le champ Code Agence
+        // Événement : Saisie dans le champ Code Agence
+        agenceCodeInput.addEventListener('input', function() {
+            // Sécurité supplémentaire au cas où
+            if (banqueSelect.value === "") {
+                this.value = '';
+                return;
+            }
+            
+            const selectedOption = banqueSelect.options[banqueSelect.selectedIndex];
+            const bankCode = selectedOption ? selectedOption.getAttribute('data-code') : '';
+            
+            if (bankCode) {
+                const prefix = bankCode + '-';
+                
+                // On récupère la valeur saisie sans les espaces, tout en majuscules
+                let rawValue = this.value.toUpperCase().replace(/\s/g, '');
+
+                // 1. On s'assure que le préfixe est toujours présent
+                if (!rawValue.startsWith(prefix)) {
+                    let suffix = rawValue.replace(new RegExp('^' + bankCode.replace(/[^A-Z0-9]/g, '')), '');
+                    suffix = suffix.replace(/^-/, ''); 
+                    rawValue = prefix + suffix;
+                }
+
+                // 2. On isole la partie après le tiret
+                let currentSuffix = rawValue.substring(prefix.length);
+                
+                // 3. NOUVEAU : On force le suffixe à n'être QUE des chiffres
+                currentSuffix = currentSuffix.replace(/[^0-9]/g, '');
+
+                // 4. On limite à 4 chiffres maximum
+                if (currentSuffix.length > 4) {
+                    currentSuffix = currentSuffix.substring(0, 4);
+                }
+
+                // On recompose la valeur finale
+                this.value = prefix + currentSuffix;
+            } else {
+                // Fallback générique si pas de code banque (ne devrait pas arriver avec le readonly)
+                this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\-]/g, '');
+            }
+
+            validateField(this);
+            if (this.value) debouncedCheck(this);
         });
     }
+
+    ['agenceNom', 'agenceAdresse'].forEach(id => {
+        const inputEl = document.getElementById(id);
+        if (inputEl) {
+            inputEl.addEventListener('input', function() {
+                let val = this.value.replace(/ {2,}/g, ' '); 
+                if (val.startsWith(' ')) val = val.trimStart();
+                this.value = val;
+                
+                validateField(this);
+                if (this.name === 'nom' && this.value) debouncedCheck(this);
+                if (this.name === 'adresse') {
+                    if(nomInput && nomInput.value) debouncedCheck(nomInput);
+                }
+            });
+        }
+    });
 
     document.querySelectorAll('.intel-input').forEach(input => {
         input.addEventListener('blur', () => checkUniqueness(input));
@@ -202,27 +290,40 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!await checkUniqueness(input)) isValid = false;
         }
 
-        if (!isValid) return;
+        if (!isValid) {
+            const firstError = this.querySelector('.is-invalid');
+            if (firstError) firstError.focus();
+            return;
+        }
 
-         //Send
+        // Send
         const btn = this.querySelector('button[type="submit"]');
         const oldText = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
         btn.disabled = true;
 
-        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
-        const data = await res.json();
-        if (data.ok) {
-            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
-            window.location.href = 'index.php?page=liste-agence';
-        } else if (data.errors) {
-            for (const [key, msg] of Object.entries(data.errors)) {
-                const input = this.querySelector(`[name="${key}"]`);
-                if (input) {
-                    input.classList.add('is-invalid');
-                    input.parentElement.querySelector('.invalid-feedback').textContent = msg;
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const data = await res.json();
+            if (data.ok) {
+                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+                window.location.href = 'index.php?page=liste-agence';
+            } else if (data.errors) {
+                for (const [key, msg] of Object.entries(data.errors)) {
+                    const input = this.querySelector(`[name="${key}"]`);
+                    if (input) {
+                        input.classList.add('is-invalid');
+                        const fb = input.parentElement.querySelector('.invalid-feedback');
+                        if (fb) fb.textContent = msg;
+                    }
                 }
+                btn.innerHTML = oldText;
+                btn.disabled = false;
             }
+        } catch (error) {
+            console.error("Erreur de soumission:", error);
+            btn.innerHTML = oldText;
+            btn.disabled = false;
         }
     });
 });

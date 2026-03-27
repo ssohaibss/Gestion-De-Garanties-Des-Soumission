@@ -30,7 +30,7 @@ $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Numéro d'Appel d'Offre <span class="text-danger">*</span></label>
                     <input type="text" name="numero_ao" id="numAOInput" class="form-control text-uppercase intel-input" 
-                           value="<?= $edit_data['num_app_offre'] ?? '' ?>" required>
+                                 value="<?= $edit_data['num_app_offre'] ?? '' ?>" placeholder="XX/XXXX/XXXX" maxlength="12" required>
                     <div class="invalid-feedback"></div>
                 </div>
                 
@@ -116,11 +116,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
-        // Length Check for AO
-        if (input.name === 'numero_ao' && val.length < 3) {
-            showError(input, "Minimum 3 caractères.");
-            return false;
-        }
+        
+        // Format Check for AO (XX/XXXX/XXXX)
+            if (input.name === 'numero_ao') {
+            const aoPattern = /^[A-Z0-9]{2}\/[A-Z0-9]{4}\/[A-Z0-9]{4}$/;
+            if (!aoPattern.test(val)) {
+             showError(input, "Le format doit être exactement XX/XXXX/XXXX.");
+             return false;
+                    }
+}
 
         // Note: We do NOT set Green here for AO Number yet, 
         if (input.name !== 'numero_ao') {

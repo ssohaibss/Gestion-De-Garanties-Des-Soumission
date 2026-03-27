@@ -28,9 +28,9 @@ if (isset($_GET['edit'])) {
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Code Banque <span class="text-danger">*</span></label>
                     <input type="text" class="form-control intel-input text-uppercase" name="code" id="banqueCode" 
-                           value="<?= $edit_data['code'] ?? '' ?>" required
-                           data-pattern="^[A-Z]{3,5}$" 
-                           data-msg="3 à 5 lettres (ex: BEA).">
+                                 value="<?= $edit_data['code'] ?? '' ?>" required maxlength="5"
+                                    data-pattern="^[A-Z]{3,5}$" 
+                             data-msg="3 à 5 lettres (ex: BEA).">
                     <div class="invalid-feedback"></div>
                 </div>
 
