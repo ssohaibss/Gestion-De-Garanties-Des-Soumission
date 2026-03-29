@@ -428,6 +428,7 @@ case 'update_appel_offre':
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'message' => "Erreur SQL lors de l'enregistrement."]);
     }
+    exit;
     break;
 
 case 'delete_appel_offre':
@@ -439,6 +440,7 @@ case 'delete_appel_offre':
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'message' => "Impossible de supprimer : ce dossier est lié à des garanties."]);
     }
+    exit;
     break;
 
 
