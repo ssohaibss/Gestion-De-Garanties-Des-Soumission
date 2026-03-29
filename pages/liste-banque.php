@@ -59,36 +59,55 @@ $banks = $pdo->query("SELECT * FROM banque ORDER BY nom_banque ASC")->fetchAll(P
 
 <script>
 document.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', async function() {
         const id = this.dataset.id;
         const nom = this.dataset.nom;
 
-        Swal.fire({
-            title: 'Confirmer la suppression ?',
-            text: `Voulez-vous vraiment supprimer la banque "${nom}" ? Cette action est irréversible.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#486a70',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_banque');
-                fd.append('id', id);
-                try {
+        const fdCheck = new FormData();
+        fdCheck.append('form_type', 'check_linked_garanties');
+        fdCheck.append('type', 'banque');
+        fdCheck.append('id', id);
+
+        try {
+            const resCheck = await fetch('process.php', { method: 'POST', body: fdCheck });
+            const dataCheck = await resCheck.json();
+            
+            let htmlText = `<p>Voulez-vous supprimer la banque "<b>${nom}</b>" ?</p>`;
+            
+            if (dataCheck.ok && dataCheck.garanties.length > 0) {
+                const list = dataCheck.garanties.map(g => `<li>${g}</li>`).join('');
+                htmlText = `<div class="text-start">
+                    <p class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> ATTENTION ! Vous allez supprimer cette banque ET toutes ses agences.</p>
+                    <p>Cela supprimera également <b>TOUTES</b> ces garanties :</p>
+                    <ul style="max-height: 120px; overflow-y: auto;" class="text-danger fw-bold">${list}</ul>
+                </div>`;
+            }
+
+            Swal.fire({
+                title: 'Confirmer la suppression',
+                html: htmlText,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#486a70',
+                confirmButtonText: 'Oui, tout supprimer',
+                cancelButtonText: 'Annuler'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const fd = new FormData();
+                    fd.append('form_type', 'delete_banque');
+                    fd.append('id', id);
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ icon: 'success', title: 'Banque supprimée', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+                        await Swal.fire({ icon: 'success', title: 'Supprimée !', timer: 1500, showConfirmButton: false });
                         location.reload();
                     } else {
-                        Swal.fire('Impossible de supprimer', data.message, 'error');
+                        Swal.fire('Erreur', data.message, 'error');
                     }
-                } catch (err) { Swal.fire('Erreur', 'Lien rompu avec le serveur.', 'error'); }
-            }
-        });
+                }
+            });
+        } catch (err) { Swal.fire('Erreur', 'Impossible de vérifier les liaisons.', 'error'); }
     });
 });
 </script>

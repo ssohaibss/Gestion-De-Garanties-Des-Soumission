@@ -402,6 +402,18 @@ $types_liberation = $pdo->query("SELECT id, code, libelle FROM type_liberation O
     const STATUS_EXPIRED = <?= json_encode($status_expired) ?>;
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('garantieForm');
+    document.querySelectorAll('input[type="date"]').forEach(dateInput => {
+        dateInput.setAttribute('max', '9999-12-31'); // Native HTML5 limit
+        dateInput.addEventListener('input', function() {
+            if (this.value) {
+                let parts = this.value.split('-');
+                if (parts[0].length > 4) {
+                    parts[0] = parts[0].substring(0, 4);
+                    this.value = parts.join('-');
+                }
+            }
+        });
+    });
     
     // --- VARIABLES STATUT (Injection SÉCURISÉE) ---
     
@@ -610,9 +622,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     form.querySelectorAll('.intel-input').forEach(i => {
-        i.addEventListener('input', function() {
+        i.addEventListener('input', function(e) {
             if(this.name === 'num_garantie') {
-                this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/]/g, '');
+                // Remove all non-alphanumeric chars and limit to 10 chars
+                let clean = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10);
+                let formatted = '';
+                
+                // Auto-inject the slashes
+                if (clean.length > 2) {
+                    formatted += clean.substring(0, 2) + '/';
+                    if (clean.length > 6) {
+                        formatted += clean.substring(2, 6) + '/' + clean.substring(6);
+                    } else {
+                        formatted += clean.substring(2);
+                    }
+                } else {
+                    formatted = clean;
+                }
+                this.value = formatted;
             }
             validateField(this);
             if(this.name === 'num_garantie' && this.value) debouncedCheck(this);
@@ -737,10 +764,23 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        modalForm.querySelectorAll('.intel-input').forEach(i => {
-            i.addEventListener('input', function() {
+       modalForm.querySelectorAll('.intel-input').forEach(i => {
+            i.addEventListener('input', function(e) {
                 if (['num_amendement', 'num_authentification', 'num_liberation'].includes(this.name)) {
-                    this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/]/g, '');
+                    let clean = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10);
+                    let formatted = '';
+                    
+                    if (clean.length > 2) {
+                        formatted += clean.substring(0, 2) + '/';
+                        if (clean.length > 6) {
+                            formatted += clean.substring(2, 6) + '/' + clean.substring(6);
+                        } else {
+                            formatted += clean.substring(2);
+                        }
+                    } else {
+                        formatted = clean;
+                    }
+                    this.value = formatted;
                 }
                 if (this.name === 'nouveau_montant' || this.name === 'montant_libere') {
                     this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');

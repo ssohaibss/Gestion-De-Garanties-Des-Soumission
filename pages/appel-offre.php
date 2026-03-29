@@ -37,7 +37,8 @@ $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Date d'Émission <span class="text-danger">*</span></label>
                     <input type="date" name="date_emission" id="dateInput" class="form-control intel-input" 
-                           value="<?= $edit_data['date_emission'] ?? '' ?>" required>
+                           value="<?= $edit_data['date_emission'] ?? '' ?>"
+                           max="<?= date('Y-m-d') ?>" required>
                     <div class="invalid-feedback"></div>
                 </div>
 
@@ -72,7 +73,18 @@ $devises = $pdo->query("SELECT Id, code FROM devise ORDER BY code")->fetchAll();
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('aoForm');
     if (!form) return;
-
+       document.querySelectorAll('input[type="date"]').forEach(dateInput => {
+        dateInput.setAttribute('max', '9999-12-31'); // Native HTML5 limit
+        dateInput.addEventListener('input', function() {
+            if (this.value) {
+                let parts = this.value.split('-');
+                if (parts[0].length > 4) {
+                    parts[0] = parts[0].substring(0, 4);
+                    this.value = parts.join('-');
+                }
+            }
+        });
+    });                        
     // --- 1. UTILS & HELPERS ---
     function debounce(func, wait) {
         let timeout;
@@ -126,6 +138,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 }
 
+        // Future date check
+        if (input.type === 'date' && val !== '') {
+            const today = new Date().toISOString().split('T')[0];
+            if (val > today) {
+                showError(input, "La date ne peut pas être dans le futur.");
+                return false;
+            }
+        }
+
         // Note: We do NOT set Green here for AO Number yet, 
         if (input.name !== 'numero_ao') {
             showSuccess(input);
@@ -160,10 +181,27 @@ document.addEventListener('DOMContentLoaded', function() {
     //           LISTENERS 
     const numInput = document.getElementById('numAOInput');
     
+
     // AO Input Listener
     if (numInput) {
-        numInput.addEventListener('input', function() {
-            this.value = this.value.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9\/\-]/g, '');
+        numInput.addEventListener('input', function(e) {
+            // Remove non-alphanumeric chars and limit to 10 chars
+            let clean = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 10);
+            let formatted = '';
+            
+            // Auto-inject the slashes
+            if (clean.length > 2) {
+                formatted += clean.substring(0, 2) + '/';
+                if (clean.length > 6) {
+                    formatted += clean.substring(2, 6) + '/' + clean.substring(6);
+                } else {
+                    formatted += clean.substring(2);
+                }
+            } else {
+                formatted = clean;
+            }
+            this.value = formatted;
+
             // Check format first
             if(validateFormat(this)) {
                 // If format OK, debounce server check

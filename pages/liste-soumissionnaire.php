@@ -67,34 +67,57 @@ $suppliers = $pdo->query($query)->fetchAll(PDO::FETCH_ASSOC);
 
 <script>
 document.querySelectorAll('.delete-supplier').forEach(btn => {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', async function() {
         const id = this.dataset.id;
         const nom = this.dataset.nom;
 
-        Swal.fire({
-            title: 'Supprimer ?',
-            text: `Supprimer le soumissionnaire "${nom}" ?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#486a70',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                const fd = new FormData();
-                fd.append('form_type', 'delete_soumissionnaire');
-                fd.append('id', id);
-                try {
+        // 1. Vérifier les garanties liées
+        const fdCheck = new FormData();
+        fdCheck.append('form_type', 'check_linked_garanties');
+        fdCheck.append('type', 'soumissionnaire');
+        fdCheck.append('id', id);
+
+        try {
+            const resCheck = await fetch('process.php', { method: 'POST', body: fdCheck });
+            const dataCheck = await resCheck.json();
+            
+            let htmlText = `<p>Voulez-vous vraiment supprimer le soumissionnaire "<b>${nom}</b>" ?</p>`;
+            
+            if (dataCheck.ok && dataCheck.garanties.length > 0) {
+                const list = dataCheck.garanties.map(g => `<li>${g}</li>`).join('');
+                htmlText = `<div class="text-start">
+                    <p class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> ATTENTION ! Cette action supprimera également <b>TOUTES</b> les garanties suivantes liées à ce soumissionnaire :</p>
+                    <ul style="max-height: 120px; overflow-y: auto;" class="text-danger fw-bold">${list}</ul>
+                    <p>Tous les amendements, libérations et documents associés seront aussi perdus.</p>
+                </div>`;
+            }
+
+            // 2. Afficher l'alerte de confirmation
+            Swal.fire({
+                title: 'Confirmer la suppression',
+                html: htmlText,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#486a70',
+                confirmButtonText: 'Oui, tout supprimer',
+                cancelButtonText: 'Annuler'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const fd = new FormData();
+                    fd.append('form_type', 'delete_soumissionnaire');
+                    fd.append('id', id);
                     const res = await fetch('process.php', { method: 'POST', body: fd });
                     const data = await res.json();
                     if (data.ok) {
-                        await Swal.fire({ icon: 'success', title: 'Soumissionnaire supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true  });
+                        await Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false });
                         location.reload();
+                    } else {
+                        Swal.fire('Erreur', data.message, 'error');
                     }
-                } catch (err) { Swal.fire('Erreur', 'Lien rompu', 'error'); }
-            }
-        });
+                }
+            });
+        } catch (err) { Swal.fire('Erreur', 'Impossible de vérifier les liaisons.', 'error'); }
     });
 });
 </script>

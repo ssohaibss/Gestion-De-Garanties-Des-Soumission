@@ -5,10 +5,10 @@ require_once 'database.php';
 function updateExpiredGuarantees($pdo) {
     try {
         $today = date('Y-m-d');
-        // Find all Active guarantees that are past expiration
+        // Met à jour les garanties Actives (1) ou À libérer (4) qui ont expiré
         $sql = "UPDATE garantie_soumission 
                 SET statutID = 2 
-                WHERE statutID = 1 
+                WHERE statutID IN (1, 4) 
                 AND date_expiration < ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$today]);
@@ -19,6 +19,23 @@ function updateExpiredGuarantees($pdo) {
     }
 }
 updateExpiredGuarantees($pdo);
+function deleteGarantieCompletely($pdo, $garantie_id) {
+    // 1. Supprimer les fichiers PDF physiques
+    $stmtDocs = $pdo->prepare("SELECT chemin_access FROM document WHERE garantie_soumissionID = ?");
+    $stmtDocs->execute([$garantie_id]);
+    $docs = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($docs as $doc) {
+        if (!empty($doc['chemin_access']) && file_exists($doc['chemin_access'])) {
+            @unlink($doc['chemin_access']); 
+        }
+    }
+    // 2. Supprimer les entrées de la base de données
+    $pdo->prepare("DELETE FROM document WHERE garantie_soumissionID = ?")->execute([$garantie_id]);
+    $pdo->prepare("DELETE FROM amendement WHERE garantie_soumissionID = ?")->execute([$garantie_id]);
+    $pdo->prepare("DELETE FROM authentification WHERE garantie_soumissionID = ?")->execute([$garantie_id]);
+    $pdo->prepare("DELETE FROM liberation WHERE garantie_soumissionID = ?")->execute([$garantie_id]);
+    $pdo->prepare("DELETE FROM garantie_soumission WHERE id = ?")->execute([$garantie_id]);
+}
 
 if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
     header('Content-Type: application/json');
@@ -96,6 +113,23 @@ case 'soumissionnaire':
     break;
 
 case 'delete_soumissionnaire':
+    header('Content-Type: application/json');
+    $id = intval($_POST['id'] ?? 0);
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT id FROM garantie_soumission WHERE soumissionnaireID = ?");
+        $stmt->execute([$id]);
+        while ($g = $stmt->fetch()) { deleteGarantieCompletely($pdo, $g['id']); }
+        
+        $pdo->prepare("DELETE FROM soumissionnaire WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => "Erreur lors de la suppression."]);
+    }
+    exit;
+    break;
     $id = intval($_POST['id'] ?? 0);
     try {
         $stmt = $pdo->prepare("DELETE FROM soumissionnaire WHERE id = ?");
@@ -490,6 +524,27 @@ case 'banque':
     exit;
 
 case 'delete_banque':
+    header('Content-Type: application/json');
+    $id = intval($_POST['id'] ?? 0);
+    try {
+        $pdo->beginTransaction();
+        // 1. Supprimer toutes les garanties liées aux agences de cette banque
+        $stmt = $pdo->prepare("SELECT gs.id FROM garantie_soumission gs JOIN agence a ON gs.agenceID = a.id WHERE a.banqueID = ?");
+        $stmt->execute([$id]);
+        while ($g = $stmt->fetch()) { deleteGarantieCompletely($pdo, $g['id']); }
+        
+        // 2. Supprimer les agences de la banque
+        $pdo->prepare("DELETE FROM agence WHERE banqueID = ?")->execute([$id]);
+        // 3. Supprimer la banque
+        $pdo->prepare("DELETE FROM banque WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => "Erreur de suppression."]);
+    }
+    exit;
+    break;
     $id = intval($_POST['id'] ?? 0);
     try {
         $stmt = $pdo->prepare("DELETE FROM banque WHERE id = ?");
@@ -557,6 +612,23 @@ case 'agence':
     exit;
 
 case 'delete_agence':
+    header('Content-Type: application/json');
+    $id = intval($_POST['id'] ?? 0);
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT id FROM garantie_soumission WHERE agenceID = ?");
+        $stmt->execute([$id]);
+        while ($g = $stmt->fetch()) { deleteGarantieCompletely($pdo, $g['id']); }
+        
+        $pdo->prepare("DELETE FROM agence WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+        echo json_encode(['ok' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['ok' => false, 'message' => 'Erreur de suppression.']);
+    }
+    exit;
+    break;
     $id = intval($_POST['id'] ?? 0);
     try {
         $stmt = $pdo->prepare("DELETE FROM agence WHERE id = ?");
@@ -698,6 +770,30 @@ case 'update_garantie':
         error_log("Garantie DB Error: " . $e->getMessage());
         echo json_encode(['ok' => false, 'message' => "Erreur DB : " . $e->getMessage()]);
     }
+    exit;
+    break;
+    case 'check_linked_garanties':
+    header('Content-Type: application/json');
+    $type = $_POST['type'] ?? '';
+    $id = intval($_POST['id'] ?? 0);
+    $garanties = [];
+    
+    if ($id > 0) {
+        if ($type === 'soumissionnaire') {
+            $stmt = $pdo->prepare("SELECT num_garantie FROM garantie_soumission WHERE soumissionnaireID = ?");
+            $stmt->execute([$id]);
+            $garanties = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } elseif ($type === 'agence') {
+            $stmt = $pdo->prepare("SELECT num_garantie FROM garantie_soumission WHERE agenceID = ?");
+            $stmt->execute([$id]);
+            $garanties = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } elseif ($type === 'banque') {
+            $stmt = $pdo->prepare("SELECT gs.num_garantie FROM garantie_soumission gs JOIN agence a ON gs.agenceID = a.id WHERE a.banqueID = ?");
+            $stmt->execute([$id]);
+            $garanties = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+    }
+    echo json_encode(['ok' => true, 'garanties' => $garanties]);
     exit;
     break;
     header('Content-Type: application/json');
@@ -846,22 +942,96 @@ case 'update_garantie':
 case 'delete_garantie':
     header('Content-Type: application/json');
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    
     if ($id > 0) {
         try {
+            // On utilise une transaction pour s'assurer que tout se supprime proprement
+            $pdo->beginTransaction();
+
+            // 1. (Optionnel mais recommandé) Supprimer les fichiers PDF physiques du serveur
+            $stmtDocs = $pdo->prepare("SELECT chemin_access FROM document WHERE garantie_soumissionID = ?");
+            $stmtDocs->execute([$id]);
+            $docs = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($docs as $doc) {
+                if (!empty($doc['chemin_access']) && file_exists($doc['chemin_access'])) {
+                    unlink($doc['chemin_access']); // Supprime le fichier
+                }
+            }
+
+            // 2. Supprimer les documents de la base de données 
+            // (Les tables de liaison document_amendement, etc. se videront automatiquement grâce au CASCADE)
             $pdo->prepare("DELETE FROM document WHERE garantie_soumissionID = ?")->execute([$id]);
+            
+            // 3. Supprimer les enregistrements enfants (Pour éviter l'erreur Foreign Key)
+            $pdo->prepare("DELETE FROM amendement WHERE garantie_soumissionID = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM authentification WHERE garantie_soumissionID = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM liberation WHERE garantie_soumissionID = ?")->execute([$id]);
+
+            // 4. Enfin, supprimer la garantie elle-même
             $stmt = $pdo->prepare("DELETE FROM garantie_soumission WHERE id = ?");
+            
             if ($stmt->execute([$id])) {
+                $pdo->commit(); // On valide toutes les suppressions
                 echo json_encode(['ok' => true]);
             } else {
+                $pdo->rollBack(); // En cas d'erreur, on annule tout
                 echo json_encode(['ok' => false, 'message' => 'Échec de la suppression']);
             }
         } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
         }
     }
     exit;
     break;
+    header('Content-Type: application/json');
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    
+    if ($id > 0) {
+        try {
+            // On utilise une transaction pour s'assurer que tout se supprime proprement
+            $pdo->beginTransaction();
 
+            // 1. (Optionnel mais recommandé) Supprimer les fichiers PDF physiques du serveur
+            $stmtDocs = $pdo->prepare("SELECT chemin_access FROM document WHERE garantie_soumissionID = ?");
+            $stmtDocs->execute([$id]);
+            $docs = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($docs as $doc) {
+                if (!empty($doc['chemin_access']) && file_exists($doc['chemin_access'])) {
+                    unlink($doc['chemin_access']); // Supprime le fichier
+                }
+            }
+
+            // 2. Supprimer les documents de la base de données 
+            // (Les tables de liaison document_amendement, etc. se videront automatiquement grâce au CASCADE)
+            $pdo->prepare("DELETE FROM document WHERE garantie_soumissionID = ?")->execute([$id]);
+            
+            // 3. Supprimer les enregistrements enfants (Pour éviter l'erreur Foreign Key)
+            $pdo->prepare("DELETE FROM amendement WHERE garantie_soumissionID = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM authentification WHERE garantie_soumissionID = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM liberation WHERE garantie_soumissionID = ?")->execute([$id]);
+
+            // 4. Enfin, supprimer la garantie elle-même
+            $stmt = $pdo->prepare("DELETE FROM garantie_soumission WHERE id = ?");
+            
+            if ($stmt->execute([$id])) {
+                $pdo->commit(); // On valide toutes les suppressions
+                echo json_encode(['ok' => true]);
+            } else {
+                $pdo->rollBack(); // En cas d'erreur, on annule tout
+                echo json_encode(['ok' => false, 'message' => 'Échec de la suppression']);
+            }
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+        }
+    }
+    exit;
+    break;
 
 case 'update_expired_status':
     header('Content-Type: application/json');
@@ -1222,7 +1392,11 @@ case 'liberation':
         $lib_id = $pdo->lastInsertId();
 
         if ($type_libID == 1) { 
+            // 1 = Libération TOTALE -> Statut "Libérée" (ID 3)
             $pdo->prepare("UPDATE garantie_soumission SET statutID = 3 WHERE id = ?")->execute([$garantie_id]);
+        } else {
+            // Sinon (Partielle) -> Nouveau statut "À libérer" (ID 4)
+            $pdo->prepare("UPDATE garantie_soumission SET statutID = 4 WHERE id = ?")->execute([$garantie_id]);
         }
 
         if (isset($_FILES['liberation_pdf']) && $_FILES['liberation_pdf']['error'] === UPLOAD_ERR_OK) {

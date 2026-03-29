@@ -17,9 +17,7 @@ $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expir
 $stmt->execute(['today' => $todayStr]);
 $activeGaranties = (int) $stmt->fetchColumn();
 
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expiration BETWEEN :today AND :limit AND statutID = 1");
-$stmt->execute(['today' => $todayStr, 'limit' => $in30DaysStr]);
-$expiringSoon = (int) $stmt->fetchColumn();
+
 
 // Card 4: Expirées global
 $stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE date_expiration < :today OR statutID = 2");
@@ -28,11 +26,14 @@ $expiredGaranties = (int) $stmt->fetchColumn();
 
 // --- DATA POUR LE NOUVEAU GRAPHIQUE (STATUTS) ---
 // À libérer (Expirées mais non libérées)
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE (date_expiration < :today OR statutID = 2) AND statutID != 3");
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM garantie_soumission WHERE statutID = 2 OR (date_expiration < :today AND statutID NOT IN (3, 4))");
 $stmt->execute(['today' => $todayStr]);
-$toBeLiberatedGaranties = (int) $stmt->fetchColumn();
+$expiredGarantiesOnly = (int) $stmt->fetchColumn();
 
-// Libérées (Statut 3)
+// À libérer (Statut 4 - Libération partielle)
+$toBeLiberatedGaranties = (int) $pdo->query("SELECT COUNT(*) FROM garantie_soumission WHERE statutID = 4")->fetchColumn();
+
+// Libérées (Statut 3 - Libération totale)
 $liberatedGaranties = (int) $pdo->query("SELECT COUNT(*) FROM garantie_soumission WHERE statutID = 3")->fetchColumn();
 
 // --- STATISTIQUES ADMIN ---
@@ -139,8 +140,8 @@ $aoData = $pdo->query("
         <div class="text-muted fw-medium"><i class="far fa-calendar-alt me-1"></i> <?php echo date('d M Y'); ?></div>
     </div>
 
-    <div class="row g-4 mb-5">
-        <div class="col-xl-3 col-md-6">
+   <div class="row g-4 mb-5">
+        <div class="col-xl-4 col-md-6">
             <div class="card kpi-card shadow-sm h-100 p-3">
                 <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
@@ -154,7 +155,7 @@ $aoData = $pdo->query("
             </div>
         </div>
         
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-6">
             <div class="card kpi-card shadow-sm h-100 p-3">
                 <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
@@ -168,25 +169,11 @@ $aoData = $pdo->query("
             </div>
         </div>
         
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-6">
             <div class="card kpi-card shadow-sm h-100 p-3">
                 <div class="card-body d-flex justify-content-between align-items-center p-2">
                     <div>
-                        <p class="kpi-title mb-2">Expire Bientôt (< 30j)</p>
-                        <h2 class="kpi-value"><?php echo number_format($expiringSoon, 0, ',', ' '); ?></h2>
-                    </div>
-                    <div class="kpi-icon-wrapper" style="background: rgba(241, 196, 15, 0.1); color: #f1c40f;">
-                        <i class="fas fa-exclamation-triangle fa-2x"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-xl-3 col-md-6">
-            <div class="card kpi-card shadow-sm h-100 p-3">
-                <div class="card-body d-flex justify-content-between align-items-center p-2">
-                    <div>
-                        <p class="kpi-title mb-2">Expirées / Libérées</p>
+                        <p class="kpi-title mb-2">Expirées</p>
                         <h2 class="kpi-value"><?php echo number_format($expiredGaranties, 0, ',', ' '); ?></h2>
                     </div>
                     <div class="kpi-icon-wrapper" style="background: rgba(231, 76, 60, 0.1); color: #e74c3c;">
@@ -281,13 +268,17 @@ $aoData = $pdo->query("
                         </div>
                     </div>
                     
-                    <div class="mt-4 pt-2 border-top">
+                   <div class="mt-4 pt-2 border-top">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #2ecc71; font-size: 0.6rem;"></i>Garanties Actives</span>
                             <span class="fw-bold text-dark fs-5"><?php echo $activeGaranties; ?></span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #f39c12; font-size: 0.6rem;"></i>À Libérer (Expirées)</span>
+                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #e74c3c; font-size: 0.6rem;"></i>Garanties Expirées</span>
+                            <span class="fw-bold text-dark fs-5"><?php echo $expiredGarantiesOnly; ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted fw-medium"><i class="fas fa-circle me-2" style="color: #f39c12; font-size: 0.6rem;"></i>Garanties À Libérer</span>
                             <span class="fw-bold text-dark fs-5"><?php echo $toBeLiberatedGaranties; ?></span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
@@ -430,14 +421,15 @@ document.addEventListener('DOMContentLoaded', function() {
     new Chart(ctxStatut, {
         type: 'doughnut',
         data: {
-            labels: ['Actives', 'À Libérer', 'Libérées'],
+            labels: ['Actives', 'Expirées', 'À Libérer', 'Libérées'],
             datasets: [{
                 data: [
                     <?php echo $activeGaranties; ?>, 
+                    <?php echo $expiredGarantiesOnly; ?>,
                     <?php echo $toBeLiberatedGaranties; ?>, 
                     <?php echo $liberatedGaranties; ?>
                 ],
-                backgroundColor: ['#2ecc71', '#f39c12', '#3498db'],
+                backgroundColor: ['#2ecc71', '#e74c3c', '#f39c12', '#3498db'],
                 borderWidth: 0,
                 hoverOffset: 6
             }]
@@ -445,10 +437,10 @@ document.addEventListener('DOMContentLoaded', function() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '80%', // Increased cutout to make room for center text
+            cutout: '80%',
             plugins: {
                 legend: { 
-                    display: false // Hidden because we built a custom numerical legend in HTML
+                    display: false 
                 },
                 tooltip: tooltipOptions
             }
