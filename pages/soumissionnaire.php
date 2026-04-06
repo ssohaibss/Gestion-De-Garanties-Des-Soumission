@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
-    // --- 4. SERVER UNIQUE CHECK ---
+  // --- 4. SERVER UNIQUE CHECK ---
     async function checkUniqueness(input) {
         // First, check basic format. If empty or invalid regex, don't check server.
         if (!validateField(input)) return false;
@@ -168,8 +168,17 @@ document.addEventListener('DOMContentLoaded', function() {
         // Only check these fields
         if (!["nom", "email", "telephone"].includes(fieldName)) return true;
 
+        // ---> THE FIX IS HERE <---
+        // The database stores phone numbers with the '+', so we must append it 
+        // to the value we are searching for, otherwise the DB won't find a match.
+        let searchValue = val;
+        if (fieldName === 'telephone') {
+            searchValue = '+' + val;
+        }
+
         try {
-            const res = await fetch(`pages/unique_check.php?type=soumissionnaire&field=${fieldName}&value=${encodeURIComponent(val)}&id=${idValue}`);
+            // Send searchValue instead of the raw val
+            const res = await fetch(`pages/unique_check.php?type=soumissionnaire&field=${fieldName}&value=${encodeURIComponent(searchValue)}&id=${idValue}`);
             if (!res.ok) return true;
 
             const data = await res.json();
