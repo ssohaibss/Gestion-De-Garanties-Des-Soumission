@@ -77,7 +77,7 @@ document.querySelectorAll('.delete-btn').forEach(btn => {
                         await Swal.fire({ icon: 'success', title: 'Pays supprimé !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                         location.reload();
                     } else {
-                        Swal.fire('Attention', data.message, 'warning');
+                        Swal.fire('Erreur', data.message, 'error');
                     }
                 } catch (e) { console.error(e); }
             }

@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         let isValid = true;
 
-       //Send
+        //Send
         const btn = this.querySelector('button[type="submit"]');
         const oldText = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement...';
@@ -149,15 +149,31 @@ document.addEventListener('DOMContentLoaded', function() {
             if(!await checkUniqueness(i)) isValid = false;
         }
 
-        if (!isValid) return;
+        if (!isValid) {
+            // FIX: Restore button if local validation fails
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            return;
+        }
 
-        const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
-        const data = await res.json();
-        if (data.ok) {
-            await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
-            window.location.href = 'index.php?page=liste-banque';
-        } else {
-            Swal.fire('Erreur', data.message || 'Erreur', 'error');
+        try {
+            const res = await fetch('process.php', { method: 'POST', body: new FormData(this) });
+            const data = await res.json();
+            
+            if (data.ok) {
+                await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
+                window.location.href = 'index.php?page=liste-banque';
+            } else {
+                // FIX: Restore button if backend returns an error
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+                Swal.fire('Erreur', data.message || 'Erreur', 'error');
+            }
+        } catch (err) {
+            // FIX: Restore button if server is unreachable
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
         }
     });
 });

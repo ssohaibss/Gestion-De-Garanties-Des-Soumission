@@ -74,21 +74,22 @@ $roles = $pdo->query("SELECT id, libelle FROM role ORDER BY libelle")->fetchAll(
                            data-pattern="^[a-zA-Z0-9._\-]{4,}$" data-msg="Min. 4 car. (lettres/chiffres, sans espace).">
                     <div class="invalid-feedback"></div>
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-bold">
-                        Mot de passe <?= $edit_data ? '' : '<span class="text-danger">*</span>' ?>
-                    </label>
-                    <div class="input-group">
-                        <input type="password" class="form-control intel-input" name="password" id="passwordField"
-                               data-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_\-])[A-Za-z\d@$!%*?&_\-]{8,}$"
-                               data-msg="8 car. min, 1 Maj, 1 Min, 1 Chiffre et 1 Symbole.">
-                        <button class="btn btn-outline-secondary" type="button" id="togglePassword"><i class="fas fa-eye"></i></button>
-                        <div class="invalid-feedback"></div>
-                    </div>
-                    <?php if ($edit_data): ?>
-                        <small class="text-muted">Laissez vide pour conserver le mot de passe actuel.</small>
-                    <?php endif; ?>
-                </div>
+            <div class="col-md-6 mb-3">
+    <label class="form-label fw-bold">
+        Mot de passe <?= $edit_data ? '' : '<span class="text-danger">*</span>' ?>
+    </label>
+    <div class="input-group">
+        <input type="password" class="form-control intel-input" name="password" id="passwordField"
+               <?= $edit_data ? '' : 'required' ?>
+               data-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_\-])[A-Za-z\d@$!%*?&_\-]{8,}$"
+               data-msg="8 car. min, 1 Maj, 1 Min, 1 Chiffre et 1 Symbole.">
+        <button class="btn btn-outline-secondary" type="button" id="togglePassword"><i class="fas fa-eye"></i></button>
+        <div class="invalid-feedback"></div>
+    </div>
+    <?php if ($edit_data): ?>
+        <small class="text-muted">Laissez vide pour conserver le mot de passe actuel.</small>
+    <?php endif; ?>
+</div>
             </div>
             
             <div class="d-flex gap-2 mt-4">

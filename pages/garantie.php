@@ -717,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (data.message) {
                 btn.innerHTML = oldText;
                 btn.disabled = false;
-                Swal.fire('Attention', data.message, 'warning');
+                Swal.fire('Erreur', data.message, 'error');
             }
         } catch(e) {
             btn.innerHTML = oldText;

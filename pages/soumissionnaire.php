@@ -259,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Blur Check (Extra safety when leaving field)
     document.querySelectorAll('.intel-input').forEach(i => i.addEventListener('blur', () => checkUniqueness(i)));
 
-    // --- 6. SUBMIT ---
+   // --- 6. SUBMIT ---
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         
@@ -291,6 +291,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (!isValid) {
+            // FIX 1: Restore button state if validation fails
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+
             const firstError = this.querySelector('.is-invalid');
             if(firstError) {
                 firstError.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -307,6 +311,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 await Swal.fire({ icon: 'success', title: 'Succès !', timer: 1500, showConfirmButton: false, timerProgressBar: true });
                 window.location.href = 'index.php?page=liste-soumissionnaire';
             } else {
+                // FIX 2: Restore button state if the server rejects the submission
+                btn.innerHTML = oldText;
+                btn.disabled = false;
+
                 if (data.errors) {
                     for (const [key, msg] of Object.entries(data.errors)) {
                         const input = form.querySelector(`[name="${key}"]`);
@@ -322,6 +330,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         } catch (err) {
+            // FIX 3: Restore button state if there is a network error
+            btn.innerHTML = oldText;
+            btn.disabled = false;
+            
             Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error');
         }
     });
