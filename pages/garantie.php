@@ -476,6 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- VALIDATION FORMAT ---
+    // --- VALIDATION FORMAT ---
     function validateField(input) {
         if (input.offsetParent === null) return true; 
 
@@ -483,6 +484,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const fb = getFeedbackElement(input);
         
         input.classList.remove('is-invalid', 'is-valid');
+
+        // ---> NOUVEAU : Vérifie si la date est physiquement impossible (ex: 31 Avril)
+        if (input.type === 'date' && input.validity && input.validity.badInput) {
+            input.classList.add('is-invalid');
+            if (fb) fb.textContent = "Date invalide (ce jour n'existe pas dans ce mois).";
+            return false;
+        }
 
         if (input.hasAttribute('required') && val === "") {
             input.classList.add('is-invalid');
@@ -645,9 +653,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if(this.name === 'num_garantie' && this.value) debouncedCheck(this);
         });
     });
-
-    form.querySelectorAll('.standard-input').forEach(el => {
-        ['change', 'input'].forEach(evt => {
+        form.querySelectorAll('.standard-input').forEach(el => {
+        // FIX: Added 'blur' to the array
+        ['input', 'change', 'blur'].forEach(evt => {
             el.addEventListener(evt, function() {
                 validateField(this);
                 if (this.type === 'date') checkMainDates();
@@ -732,7 +740,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupModalForm('authentificationForm', 'authentificationModal', 'authentification');
     setupModalForm('liberationForm', 'liberationModal', 'liberation');
 
-    function setupModalForm(formId, modalId, type) {
+ function setupModalForm(formId, modalId, type) {
         const modalForm = document.getElementById(formId);
         if(!modalForm) return;
         
@@ -740,30 +748,76 @@ document.addEventListener('DOMContentLoaded', function() {
         const mPdfPrev = modalForm.querySelector('div[id$="Preview"]');
         if(mPdfInput && mPdfPrev) mPdfInput.addEventListener('change', function() { handlePdfPreview(this, mPdfPrev); });
 
+        // -- DATE LISTENERS --
         const dateAmendInput = modalForm.querySelector('input[name="date_amendement"]');
         if(type === 'amendement' && dateAmendInput) {
-            dateAmendInput.addEventListener('input', function() {
-                validateField(this);
-                checkDateConstraints(this, 'amendement_date');
+            ['input', 'blur', 'change'].forEach(evt => {
+                dateAmendInput.addEventListener(evt, function() {
+                    validateField(this);
+                    checkDateConstraints(this, 'amendement_date');
+                });
             });
         }
 
         const newExpInput = modalForm.querySelector('input[name="nouvelle_date_expiration"]');
         if(type === 'amendement' && newExpInput) {
-            newExpInput.addEventListener('input', function() {
-                validateField(this);
-                checkDateConstraints(this, 'new_expiration');
+            ['input', 'blur', 'change'].forEach(evt => {
+                newExpInput.addEventListener(evt, function() {
+                    validateField(this);
+                    checkDateConstraints(this, 'new_expiration');
+                });
             });
         }
 
         const dateAuthInput = modalForm.querySelector('input[name="date_authentification"]');
         if(type === 'authentification' && dateAuthInput) {
-            dateAuthInput.addEventListener('input', function() {
-                validateField(this);
-                checkDateConstraints(this, 'authentification_date');
+            ['input', 'blur', 'change'].forEach(evt => {
+                dateAuthInput.addEventListener(evt, function() {
+                    validateField(this);
+                    checkDateConstraints(this, 'authentification_date');
+                });
             });
         }
+
+        // --- NOUVEAU: FONCTION DE CONTRÔLE DU MONTANT LIBÉRÉ ---
+        function checkMontantLiberationConstraint(input) {
+            if (!currentEditingGarantie) return true;
+
+            const valRaw = input.value.trim().replace(',', '.');
+            if (valRaw === "") return true;
+
+            const val = parseFloat(valRaw);
+            if (isNaN(val)) return true;
+
+            const maxAmount = parseFloat(currentEditingGarantie.resteALiberer);
+            const fb = getFeedbackElement(input);
+
+            // 1. Si DÉPASSEMENT -> Erreur rouge immédiate
+            if (val > maxAmount) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                if (fb) fb.textContent = `Erreur: Dépasse le reste à libérer (${maxAmount.toLocaleString('fr-FR')} ${currentEditingGarantie.deviseCode}).`;
+                return false;
+            } 
+            // 2. Si EXACTEMENT le montant total -> Bascule automatique en Totale !
+            else if (val === maxAmount) {
+                const typeSelect = document.getElementById('typeLiberationSelect');
+                const codeActuel = typeSelect.options[typeSelect.selectedIndex]?.dataset?.code;
+                
+                if (typeSelect && codeActuel !== 'TOTALE') {
+                    for (let j = 0; j < typeSelect.options.length; j++) {
+                        if (typeSelect.options[j].dataset.code === 'TOTALE') {
+                            typeSelect.selectedIndex = j;
+                            typeSelect.dispatchEvent(new Event('change')); // Force l'UI à se mettre à jour
+                            break;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
         
+       // -- TEXT INPUT LISTENERS --
        modalForm.querySelectorAll('.intel-input').forEach(i => {
             i.addEventListener('input', function(e) {
                 if (['num_amendement', 'num_authentification', 'num_liberation'].includes(this.name)) {
@@ -786,9 +840,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.value = this.value.replace(/[^0-9.,]/g, '').replace(',', '.');
                 }
                 validateField(this);
+                
+                // AJOUT : Vérification temps réel du montant !
+                if (this.name === 'montant_libere') checkMontantLiberationConstraint(this);
+
                 if (this.value !== "" && !this.classList.contains('is-invalid')) debouncedCheck(this);
             });
-            i.addEventListener('blur', function() { checkUniqueness(this); });
+
+            i.addEventListener('blur', function() { 
+                checkUniqueness(this); 
+                // AJOUT : Vérification à la sortie du champ !
+                if (this.name === 'montant_libere') checkMontantLiberationConstraint(this);
+            });
         });
 
         modalForm.addEventListener('submit', async function(e) {
@@ -806,6 +869,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if(i.name === 'date_authentification' && type === 'authentification') {
                     if(!checkDateConstraints(i, 'authentification_date')) mValid = false;
+                }
+                // AJOUT : Bloquer la soumission si le montant dépasse !
+                if(i.name === 'montant_libere' && type === 'liberation') {
+                    if(!checkMontantLiberationConstraint(i)) mValid = false;
                 }
                 if(['num_amendement', 'num_authentification', 'num_liberation'].includes(i.name)) mUniqueInputs.push(i);
             });
@@ -925,32 +992,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const libDateInput = document.querySelector('#liberationForm input[name="date_liberation"]');
     if (libDateInput) {
-        libDateInput.addEventListener('input', function() {
-            const val = this.value;
-            const fb = getFeedbackElement(this);
-            const today = getTodayLocal(); 
-            this.classList.remove('is-invalid', 'is-valid');
-            if (fb) fb.textContent = "";
-            if (val.length < 10) return;
+        // FIX: Add blur and change listeners
+        ['input', 'blur', 'change'].forEach(evt => {
+            libDateInput.addEventListener(evt, function() {
+                const val = this.value;
+                const fb = getFeedbackElement(this);
+                const today = getTodayLocal(); 
+                this.classList.remove('is-invalid', 'is-valid');
+                if (fb) fb.textContent = "";
 
-            let hasError = false;
-            if (val > today) {
-                this.classList.add('is-invalid');
-                if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
-                hasError = true;
-            } else if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
-                this.classList.add('is-invalid');
-                const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
-                if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
-                hasError = true;
-            }
+                // NOUVEAU: Catch impossible dates live!
+                if (this.validity && this.validity.badInput) {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = "Date invalide (ce jour n'existe pas dans ce mois).";
+                    return;
+                }
 
-            if (!hasError) {
-                this.classList.add('is-valid');
-            }
+                if (val === "") {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = "Ce champ est obligatoire.";
+                    return;
+                }
+
+                if (val.length < 10) return;
+
+                let hasError = false;
+                if (val > today) {
+                    this.classList.add('is-invalid');
+                    if (fb) fb.textContent = "La date de libération ne peut pas être dans le futur.";
+                    hasError = true;
+                } else if (currentEditingGarantie && val < currentEditingGarantie.dateEmission) {
+                    this.classList.add('is-invalid');
+                    const emissionFormatted = new Date(currentEditingGarantie.dateEmission).toLocaleDateString('fr-FR');
+                    if (fb) fb.textContent = `La date ne peut pas être antérieure à la date d'émission (${emissionFormatted}).`;
+                    hasError = true;
+                }
+
+                if (!hasError) {
+                    this.classList.add('is-valid');
+                }
+            });
         });
     }
-
     function handlePdfPreview(input, container) {
         container.innerHTML = '';
         if (input.files.length === 0) return;

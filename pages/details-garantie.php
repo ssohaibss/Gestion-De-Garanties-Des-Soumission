@@ -626,18 +626,48 @@ document.querySelectorAll('.delete-amendement').forEach(btn => {
 
 document.querySelectorAll('.delete-liberation').forEach(btn => {
     btn.addEventListener('click', async function() {
-        if(!confirm("Supprimer cette libération ?")) return;
         const id = this.dataset.id;
-        const fd = new FormData();
-        fd.append('form_type', 'delete_liberation');
-        fd.append('id', id);
-        
-        try {
-            const res = await fetch('process.php', {method: 'POST', body: fd});
-            const data = await res.json();
-            if(data.ok) location.reload();
-            else alert(data.message || "Erreur");
-        } catch(e) { alert("Erreur serveur"); }
+
+        Swal.fire({
+            title: 'Supprimer la libération ?',
+            html: `Voulez-vous vraiment annuler et supprimer cette libération ?<br><br>
+                   <div class="alert alert-danger p-2 mb-0 text-start" style="font-size: 0.9em;">
+                       <i class="fas fa-exclamation-triangle me-2"></i> <strong>Attention :</strong> Cette action est irréversible et le montant sera rajouté au total de la garantie.
+                   </div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#486a70',
+            confirmButtonText: '<i class="fas fa-trash-alt me-2"></i>Oui, supprimer',
+            cancelButtonText: 'Annuler',
+            reverseButtons: true // Met le bouton Annuler à gauche
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                const fd = new FormData();
+                fd.append('form_type', 'delete_liberation');
+                fd.append('id', id);
+                
+                try {
+                    const res = await fetch('process.php', {method: 'POST', body: fd});
+                    const data = await res.json();
+                    
+                    if(data.ok) {
+                        await Swal.fire({ 
+                            title: 'Supprimée !', 
+                            icon: 'success', 
+                            timer: 1500, 
+                            showConfirmButton: false, 
+                            timerProgressBar: true 
+                        });
+                        location.reload();
+                    } else {
+                        Swal.fire('Erreur', data.message || "Erreur lors de la suppression.", 'error');
+                    }
+                } catch(e) { 
+                    Swal.fire('Erreur', 'Impossible de contacter le serveur.', 'error'); 
+                }
+            }
+        });
     });
 });
 </script>

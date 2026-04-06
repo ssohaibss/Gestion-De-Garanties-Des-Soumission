@@ -1427,11 +1427,64 @@ case 'liberation':
 case 'delete_liberation':
     header('Content-Type: application/json');
     $id = intval($_POST['id'] ?? 0);
+    
+    if ($id <= 0) {
+        echo json_encode(['ok' => false, 'message' => "ID invalide."]);
+        exit;
+    }
+
     try {
+        $pdo->beginTransaction();
+
+        // 1. Récupérer l'ID de la garantie AVANT de supprimer la libération
+        $stmtG = $pdo->prepare("SELECT garantie_soumissionID FROM liberation WHERE id = ?");
+        $stmtG->execute([$id]);
+        $garantie_id = $stmtG->fetchColumn();
+
+        // 2. Trouver et supprimer le document PDF lié pour libérer de l'espace
+        $sqlDoc = "SELECT d.id, d.chemin_access FROM document d JOIN document_liberation dl ON d.id = dl.documentID WHERE dl.liberationID = ?";
+        $stmtDoc = $pdo->prepare($sqlDoc);
+        $stmtDoc->execute([$id]);
+        $document = $stmtDoc->fetch(PDO::FETCH_ASSOC);
+
+        if ($document) {
+            if (file_exists($document['chemin_access'])) {
+                unlink($document['chemin_access']); // Supprime le fichier physique
+            }
+            $pdo->prepare("DELETE FROM document_liberation WHERE liberationID = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM document WHERE id = ?")->execute([$document['id']]);
+        }
+
+        // 3. Supprimer la libération
         $pdo->prepare("DELETE FROM liberation WHERE id = ?")->execute([$id]);
+
+        // 4. Recalculer et mettre à jour le statut de la garantie
+        if ($garantie_id) {
+            $stmtCheck = $pdo->prepare("SELECT type_liberationID FROM liberation WHERE garantie_soumissionID = ?");
+            $stmtCheck->execute([$garantie_id]);
+            $remaining_libs = $stmtCheck->fetchAll(PDO::FETCH_COLUMN);
+
+            if (count($remaining_libs) == 0) {
+                // S'il n'y a plus aucune libération, la garantie redevient "Active" (ID 1)
+                $pdo->prepare("UPDATE garantie_soumission SET statutID = 1 WHERE id = ?")->execute([$garantie_id]);
+            } else {
+                // S'il reste des libérations, on vérifie si l'une d'elles est TOTALE (type 1)
+                if (in_array(1, $remaining_libs)) {
+                    $pdo->prepare("UPDATE garantie_soumission SET statutID = 3 WHERE id = ?")->execute([$garantie_id]);
+                } else {
+                    // Sinon, ce sont uniquement des partielles (type 2), donc statut "À libérer" (ID 4)
+                    $pdo->prepare("UPDATE garantie_soumission SET statutID = 4 WHERE id = ?")->execute([$garantie_id]);
+                }
+            }
+        }
+
+        $pdo->commit();
         echo json_encode(['ok' => true]);
     } catch (Exception $e) {
-        echo json_encode(['ok' => false, 'message' => "Erreur suppression"]);
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        echo json_encode(['ok' => false, 'message' => "Erreur suppression : " . $e->getMessage()]);
     }
     exit;
     break;
@@ -1441,4 +1494,4 @@ default:
     header('Location: index.php');
     exit;
 }
-?>`
+?>
